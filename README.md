@@ -10,7 +10,7 @@
 Turn a screenshot of a coordinate table into numbered points, a line and an
 optional polygon directly in QGIS.
 
-![OCR2Geometry v0.3.0 running in QGIS 4](docs/screenshots/ocr2geometry-v0.3.0-ru.png)
+![OCR2Geometry v0.3.0 running in QGIS 4](docs/screenshots/ocr2geometry-v0.3.0-ru.jpg)
 
 *OCR2Geometry v0.3.0 on QGIS 4.0.0 with local RapidOCR diagnostics.*
 
