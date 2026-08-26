@@ -10,7 +10,7 @@
 Плагин превращает скриншот таблицы координат в пронумерованные угловые точки,
 линию и полигон непосредственно в QGIS.
 
-![OCR2Geometry v0.3.0 в QGIS 4](docs/screenshots/ocr2geometry-v0.3.0-ru.jpg)
+![Английский интерфейс OCR2Geometry v0.5.0 в QGIS 4](docs/screenshots/ocr2geometry-v0.5.0-en.png)
 
 *OCR2Geometry v0.3.0 в QGIS 4.0.0 с диагностикой локального RapidOCR.*
 
