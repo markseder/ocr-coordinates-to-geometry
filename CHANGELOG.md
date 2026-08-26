@@ -5,6 +5,15 @@ while it matures toward 1.0.
 
 ## Unreleased
 
+### 0.6.3-beta1
+
+- Replaced the plain-text coordinate dialog with a nine-column spreadsheet editor.
+- Added Ctrl+C/Ctrl+V support for Excel-style table ranges.
+- Added automatic layouts for 7-column DMS, 3-column Point/Lat DD/Lon DD and 2-column Lat DD/Lon DD data.
+- Added live DMS-to-DD and DD-to-DMS conversion in both directions.
+- Added decimal-comma and header-row support.
+- Fixed negative coordinates between 0 and -1 degrees.
+
 ## 0.6.2 — 2026-08-26
 
 - Added CSV export for the reviewed coordinate table.
