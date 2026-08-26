@@ -241,3 +241,31 @@ def coordinate_quality_issues(rows: Sequence[CoordinateRow]) -> list[tuple[str, 
     ):
         issues.append(("repeated_closing_vertex", (rows[0].point_id, rows[-1].point_id)))
     return issues
+
+
+CSV_HEADERS = (
+    "point_id",
+    "latitude_deg",
+    "latitude_min",
+    "latitude_sec",
+    "longitude_deg",
+    "longitude_min",
+    "longitude_sec",
+    "latitude_dd",
+    "longitude_dd",
+    "ocr_confidence_min_pct",
+)
+
+
+def coordinate_csv_row(
+    row: CoordinateRow, confidences: Sequence[float | None] = ()
+) -> list[str]:
+    """Return one stable, locale-independent CSV record."""
+    known = [value for value in confidences if value is not None]
+    confidence = f"{min(known) * 100:.1f}" if known else ""
+    return [
+        *row.as_cells(),
+        f"{row.latitude:.8f}",
+        f"{row.longitude:.8f}",
+        confidence,
+    ]
