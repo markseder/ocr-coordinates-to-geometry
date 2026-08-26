@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import csv
 import platform
 import tempfile
 import time
@@ -51,7 +52,9 @@ from qgis.PyQt.QtCore import QVariant
 
 from .core import (
     CoordinateRow,
+    CSV_HEADERS,
     closed_vertices,
+    coordinate_csv_row,
     coordinate_quality_issues,
     parse_coordinate_lines,
     row_from_values,
@@ -154,9 +157,11 @@ class OcrCoordinatesDialog(QDialog):
         table_buttons = QHBoxLayout()
         self.add_row_button = QPushButton(self.tr("add_row"))
         self.delete_row_button = QPushButton(self.tr("delete_rows"))
+        self.save_csv_button = QPushButton(self.tr("save_csv"))
         table_buttons.addWidget(self.add_row_button)
         table_buttons.addWidget(self.delete_row_button)
         table_buttons.addStretch(1)
+        table_buttons.addWidget(self.save_csv_button)
         root.addLayout(table_buttons)
 
         options = QGroupBox(self.tr("result_group"))
@@ -193,6 +198,7 @@ class OcrCoordinatesDialog(QDialog):
         self.about_button.clicked.connect(self.show_about)
         self.add_row_button.clicked.connect(self.add_empty_row)
         self.delete_row_button.clicked.connect(self.delete_selected_rows)
+        self.save_csv_button.clicked.connect(self.save_csv)
         self.create_button.clicked.connect(self.create_geometry)
         self.table.cellChanged.connect(self.update_decimal_preview)
 
@@ -418,7 +424,7 @@ class OcrCoordinatesDialog(QDialog):
             python_executable = str(error)
         return "\n".join(
             [
-                "OCR2Geometry: 0.6.1",
+                "OCR2Geometry: 0.6.2-beta1",
                 f"QGIS: {Qgis.QGIS_VERSION}",
                 f"Locale: {self.locale}",
                 f"OS: {platform.platform()}",
@@ -434,7 +440,7 @@ class OcrCoordinatesDialog(QDialog):
         dialog.setWindowTitle(self.tr("about_title"))
         dialog.resize(620, 430)
         layout = QVBoxLayout(dialog)
-        title = QLabel("<h2>OCR2Geometry 0.6.1</h2>")
+        title = QLabel("<h2>OCR2Geometry 0.6.2-beta1</h2>")
         title.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(title)
         description = QLabel(
@@ -545,7 +551,7 @@ class OcrCoordinatesDialog(QDialog):
         self._set_decimal_cells(row_index, row)
         self.table.blockSignals(False)
 
-    def rows_from_table(self) -> list[CoordinateRow]:
+    def rows_from_table(self, apply_sort=True) -> list[CoordinateRow]:
         rows = []
         for row_index in range(self.table.rowCount()):
             values = []
@@ -555,12 +561,58 @@ class OcrCoordinatesDialog(QDialog):
                     raise ValueError(self.tr("empty_cell", row=row_index + 1))
                 values.append(float(item.text().strip().replace(",", ".")))
             rows.append(row_from_values(values))
-        if bool(self.order_combo.currentData()):
+        if apply_sort and bool(self.order_combo.currentData()):
             rows.sort(key=lambda row: row.point_id)
         point_ids = [row.point_id for row in rows]
         if len(point_ids) != len(set(point_ids)):
             raise ValueError(self.tr("duplicate_ids"))
         return rows
+
+    def save_csv(self):
+        try:
+            rows = self.rows_from_table(apply_sort=False)
+        except ValueError as error:
+            QMessageBox.critical(self, self.tr("table_error"), str(error))
+            return
+        if not rows:
+            QMessageBox.warning(self, self.tr("empty_table"), self.tr("nothing_to_save"))
+            return
+        start_dir = self.settings.value(f"{self.SETTINGS_PREFIX}/last_csv_dir", "")
+        base_name = self.layer_name_edit.text().strip() or "OCR2Geometry"
+        safe_name = "".join("_" if char in '<>:"/\\|?*' else char for char in base_name)
+        suggested = str(Path(start_dir) / f"{safe_name}.csv") if start_dir else f"{safe_name}.csv"
+        path, _ = QFileDialog.getSaveFileName(
+            self, self.tr("save_csv_title"), suggested, self.tr("csv_filter")
+        )
+        if not path:
+            return
+        if not path.lower().endswith(".csv"):
+            path += ".csv"
+        try:
+            with open(path, "w", newline="", encoding="utf-8-sig") as output:
+                writer = csv.writer(output, delimiter=";", lineterminator="\n")
+                writer.writerow(CSV_HEADERS)
+                for row_index, row in enumerate(rows):
+                    confidences = (
+                        self.row_confidences[row_index]
+                        if row_index < len(self.row_confidences)
+                        else ()
+                    )
+                    writer.writerow(coordinate_csv_row(row, confidences))
+        except OSError as error:
+            QMessageBox.critical(
+                self, self.tr("csv_save_error"), self.tr("csv_save_failed", error=error)
+            )
+            return
+        self.settings.setValue(
+            f"{self.SETTINGS_PREFIX}/last_csv_dir", str(Path(path).parent)
+        )
+        self.status.setText(self.tr("csv_saved_status", count=len(rows)))
+        QMessageBox.information(
+            self,
+            self.tr("csv_saved_title"),
+            self.tr("csv_saved", count=len(rows), path=path),
+        )
 
     @staticmethod
     def _format_distance(metres):
