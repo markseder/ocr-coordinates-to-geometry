@@ -5,6 +5,14 @@ while it matures toward 1.0.
 
 ## Unreleased
 
+### 0.6.1-beta1
+
+- Preserved confidence scores returned by RapidOCR.
+- Added green, yellow and red confidence highlighting to recognized values.
+- Added exact confidence percentages in table-cell tooltips.
+- Added low-confidence point warnings to the pre-creation review.
+- Clear OCR confidence styling when a user manually edits a row.
+
 ## 0.6.0 — 2026-08-26
 
 - Added a pre-creation quality review dialog.
