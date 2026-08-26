@@ -20,6 +20,9 @@ class OcrToken:
 
 
 def _load_engine():
+    from .dependencies import activate_vendor_directory
+
+    activate_vendor_directory()
     errors = []
     try:
         from rapidocr import RapidOCR
@@ -34,8 +37,7 @@ def _load_engine():
     except Exception as error:
         errors.append(error)
     raise OcrUnavailableError(
-        "RapidOCR is not installed in the QGIS Python environment. "
-        "Install packages 'rapidocr' and 'onnxruntime', then restart QGIS."
+        "RapidOCR не установлен или не загрузился. Нажмите «Установить OCR»."
     ) from errors[-1]
 
 

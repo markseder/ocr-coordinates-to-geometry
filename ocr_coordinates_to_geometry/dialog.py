@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import time
 
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QPixmap
@@ -20,6 +21,8 @@ from qgis.PyQt.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
+    QProgressDialog,
+    QApplication,
     QVBoxLayout,
 )
 from qgis.core import (
@@ -55,9 +58,11 @@ class OcrCoordinatesDialog(QDialog):
         self.open_button = QPushButton("Открыть изображение…")
         self.paste_button = QPushButton("Вставить из буфера")
         self.recognize_button = QPushButton("Распознать")
+        self.install_ocr_button = QPushButton("Установить OCR")
         buttons.addWidget(self.open_button)
         buttons.addWidget(self.paste_button)
         buttons.addStretch(1)
+        buttons.addWidget(self.install_ocr_button)
         buttons.addWidget(self.recognize_button)
         root.addLayout(buttons)
 
@@ -105,6 +110,7 @@ class OcrCoordinatesDialog(QDialog):
         self.open_button.clicked.connect(self.open_image)
         self.paste_button.clicked.connect(self.paste_image)
         self.recognize_button.clicked.connect(self.recognize)
+        self.install_ocr_button.clicked.connect(self.install_ocr)
         self.add_row_button.clicked.connect(self.add_empty_row)
         self.delete_row_button.clicked.connect(self.delete_selected_rows)
         self.create_button.clicked.connect(self.create_geometry)
@@ -153,6 +159,20 @@ class OcrCoordinatesDialog(QDialog):
             QMessageBox.warning(self, "Нет изображения", "Сначала откройте или вставьте изображение.")
             return
         self.status.setText("Распознавание…")
+        from .dependencies import rapidocr_available
+
+        if not rapidocr_available():
+            answer = QMessageBox.question(
+                self,
+                "Установка RapidOCR",
+                "Для распознавания нужно один раз установить RapidOCR (около 100–200 МБ).\n\n"
+                "Он будет установлен автоматически в профиль QGIS без прав администратора. Продолжить?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if answer != QMessageBox.StandardButton.Yes or not self.install_ocr():
+                self.status.setText("RapidOCR не установлен")
+                return
         try:
             lines = recognize_lines(self.image_path)
         except OcrUnavailableError as error:
@@ -166,6 +186,46 @@ class OcrCoordinatesDialog(QDialog):
         self.status.setText(f"Распознано точек: {len(rows)}")
         if warnings:
             QMessageBox.warning(self, "Проверьте распознавание", "\n".join(warnings[:12]))
+
+    def install_ocr(self):
+        from .dependencies import install_rapidocr, rapidocr_available, vendor_directory
+
+        if rapidocr_available():
+            self.status.setText("RapidOCR уже установлен")
+            return True
+        progress = QProgressDialog("Подготовка установки…", "Отмена", 0, 0, self)
+        progress.setWindowTitle("Установка RapidOCR")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.show()
+
+        last_update = [0.0]
+
+        def update_progress(line):
+            now = time.monotonic()
+            if now - last_update[0] > 0.1:
+                progress.setLabelText(line[:160] or "Загрузка компонентов OCR…")
+                QApplication.processEvents()
+                last_update[0] = now
+
+        ok, log = install_rapidocr(update_progress, progress.wasCanceled)
+        progress.close()
+        if ok:
+            self.status.setText("RapidOCR установлен — можно распознавать")
+            QMessageBox.information(
+                self,
+                "RapidOCR готов",
+                "Компоненты OCR установлены. Повторно устанавливать их при следующем запуске не нужно.",
+            )
+            return True
+        tail = "\n".join(log.splitlines()[-12:])
+        QMessageBox.critical(
+            self,
+            "Не удалось установить RapidOCR",
+            f"Проверьте интернет и повторите установку.\n\nПапка: {vendor_directory()}\n\n{tail}",
+        )
+        self.status.setText("Ошибка установки RapidOCR")
+        return False
 
     def fill_table(self, rows):
         self.table.setRowCount(len(rows))

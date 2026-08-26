@@ -17,6 +17,7 @@ Example: `1 | 59 | 46 | 15 | 93 | 27 | 00`.
 
 - Open PNG/JPG screenshots or paste an image from the clipboard.
 - OCR through RapidOCR.
+- One-click automatic RapidOCR installation into the current QGIS profile.
 - Editable recognition preview.
 - Add and delete table rows before creating geometry.
 - DMS to decimal-degree conversion.
@@ -43,9 +44,12 @@ enums.
 
 ## OCR dependency
 
-The UI and geometry engine work without third-party packages, but automatic
-image recognition needs RapidOCR and ONNX Runtime in the Python environment
-used by QGIS:
+On the first recognition, the plugin offers to install RapidOCR and ONNX Runtime
+automatically into the current QGIS user profile. Administrator rights are not
+required. The packages stay available after QGIS restarts and plugin upgrades.
+
+Manual installation is only needed if the automatic download is blocked by a
+proxy or antivirus:
 
 Open **OSGeo4W Shell** installed with QGIS and run:
 
