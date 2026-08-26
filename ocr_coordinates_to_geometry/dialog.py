@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from qgis.PyQt.QtCore import Qt, QUrl
-from qgis.PyQt.QtGui import QDesktopServices, QPixmap
+from qgis.PyQt.QtGui import QBrush, QColor, QDesktopServices, QPixmap
 from qgis.PyQt.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -56,7 +56,7 @@ from .core import (
     parse_coordinate_lines,
     row_from_values,
 )
-from .ocr import OcrUnavailableError, recognize_lines
+from .ocr import OcrLine, OcrUnavailableError, recognize_lines
 from .i18n import translate
 
 
@@ -70,6 +70,7 @@ class OcrCoordinatesDialog(QDialog):
         self.settings = QgsSettings()
         self.image_path = ""
         self.temp_image_path = ""
+        self.row_confidences = []
         self.setWindowTitle(self.tr("window_title"))
         self.resize(
             int(self.settings.value(f"{self.SETTINGS_PREFIX}/width", 820)),
@@ -145,6 +146,10 @@ class OcrCoordinatesDialog(QDialog):
         )
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         root.addWidget(self.table, 1)
+
+        self.confidence_legend = QLabel(self.tr("confidence_legend"))
+        self.confidence_legend.setTextFormat(Qt.TextFormat.RichText)
+        root.addWidget(self.confidence_legend)
 
         table_buttons = QHBoxLayout()
         self.add_row_button = QPushButton(self.tr("add_row"))
@@ -252,12 +257,15 @@ class OcrCoordinatesDialog(QDialog):
             self.table.setItem(row_index, column, QTableWidgetItem("0"))
         self._set_decimal_cells(row_index, row_from_values([next_point, 0, 0, 0, 0, 0, 0]))
         self.table.blockSignals(False)
+        self.row_confidences.append(())
         self.table.setCurrentCell(row_index, 1)
 
     def delete_selected_rows(self):
         selected = {index.row() for index in self.table.selectedIndexes()}
         for row_index in sorted(selected, reverse=True):
             self.table.removeRow(row_index)
+            if row_index < len(self.row_confidences):
+                self.row_confidences.pop(row_index)
 
     def open_image(self):
         start_dir = self.settings.value(f"{self.SETTINGS_PREFIX}/last_image_dir", "")
@@ -324,13 +332,33 @@ class OcrCoordinatesDialog(QDialog):
         self.process_coordinate_lines(lines)
 
     def process_coordinate_lines(self, lines):
+        prepared = [
+            (line.text, line.confidences) if isinstance(line, OcrLine) else (str(line), ())
+            for line in lines
+        ]
+        text_lines = [text for text, _ in prepared]
         rows, warnings, detected = parse_coordinate_lines(
-            lines,
+            text_lines,
             coordinate_format=self.format_combo.currentData(),
             axis_order=self.axis_combo.currentData(),
-            sort_by_point=bool(self.order_combo.currentData()),
+            sort_by_point=False,
         )
-        self.fill_table(rows)
+        accepted_confidences = []
+        for text, confidences in prepared:
+            accepted, _, _ = parse_coordinate_lines(
+                [text],
+                coordinate_format=self.format_combo.currentData(),
+                axis_order=self.axis_combo.currentData(),
+                sort_by_point=False,
+            )
+            if accepted:
+                accepted_confidences.append(tuple(confidences))
+        paired = list(zip(rows, accepted_confidences))
+        if bool(self.order_combo.currentData()):
+            paired.sort(key=lambda item: item[0].point_id)
+        rows = [row for row, _ in paired]
+        confidences = [values for _, values in paired]
+        self.fill_table(rows, confidences)
         if rows:
             format_name = (detected or self.format_combo.currentData() or "auto").upper()
             self.status.setText(
@@ -390,7 +418,7 @@ class OcrCoordinatesDialog(QDialog):
             python_executable = str(error)
         return "\n".join(
             [
-                "OCR2Geometry: 0.6.0",
+                "OCR2Geometry: 0.6.1-beta1",
                 f"QGIS: {Qgis.QGIS_VERSION}",
                 f"Locale: {self.locale}",
                 f"OS: {platform.platform()}",
@@ -406,7 +434,7 @@ class OcrCoordinatesDialog(QDialog):
         dialog.setWindowTitle(self.tr("about_title"))
         dialog.resize(620, 430)
         layout = QVBoxLayout(dialog)
-        title = QLabel("<h2>OCR2Geometry 0.6.0</h2>")
+        title = QLabel("<h2>OCR2Geometry 0.6.1-beta1</h2>")
         title.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(title)
         description = QLabel(
@@ -452,14 +480,44 @@ class OcrCoordinatesDialog(QDialog):
         layout.addWidget(buttons)
         dialog.exec()
 
-    def fill_table(self, rows):
+    def fill_table(self, rows, confidences=None):
+        self.row_confidences = list(confidences or [()] * len(rows))
         self.table.blockSignals(True)
         self.table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
             for column, text in enumerate(row.as_cells()):
                 self.table.setItem(row_index, column, QTableWidgetItem(text))
             self._set_decimal_cells(row_index, row)
+            self._apply_confidence_style(row_index)
         self.table.blockSignals(False)
+
+    def _apply_confidence_style(self, row_index):
+        if row_index >= len(self.row_confidences):
+            return
+        confidences = self.row_confidences[row_index]
+        known = [value for value in confidences if value is not None]
+        if not known:
+            return
+        row_score = min(known)
+        for column in range(self.table.columnCount()):
+            item = self.table.item(row_index, column)
+            if item is None:
+                continue
+            score = (
+                confidences[column]
+                if column < 7 and len(confidences) == 7 and confidences[column] is not None
+                else row_score
+            )
+            color = "#c8e6c9" if score >= 0.90 else "#fff3b0" if score >= 0.75 else "#ffcdd2"
+            item.setBackground(QBrush(QColor(color)))
+            item.setToolTip(self.tr("confidence_value", value=f"{score * 100:.1f}"))
+
+    def _clear_confidence_style(self, row_index):
+        for column in range(self.table.columnCount()):
+            item = self.table.item(row_index, column)
+            if item is not None:
+                item.setBackground(QBrush())
+                item.setToolTip("")
 
     def _set_decimal_cells(self, row_index, row):
         for column, value in ((7, row.latitude), (8, row.longitude)):
@@ -470,6 +528,9 @@ class OcrCoordinatesDialog(QDialog):
     def update_decimal_preview(self, row_index, column):
         if column >= 7:
             return
+        if row_index < len(self.row_confidences):
+            self.row_confidences[row_index] = ()
+            self._clear_confidence_style(row_index)
         try:
             values = []
             for current_column in range(7):
@@ -518,6 +579,19 @@ class OcrCoordinatesDialog(QDialog):
         for issue, point_ids in coordinate_quality_issues(rows):
             warnings.append(
                 self.tr(issue, points=", ".join(str(value) for value in point_ids))
+            )
+        low_confidence_points = []
+        for row_index, confidences in enumerate(self.row_confidences):
+            known = [value for value in confidences if value is not None]
+            if known and min(known) < 0.75:
+                item = self.table.item(row_index, 0)
+                low_confidence_points.append(item.text() if item is not None else row_index + 1)
+        if low_confidence_points:
+            warnings.append(
+                self.tr(
+                    "low_confidence_points",
+                    points=", ".join(str(value) for value in low_confidence_points),
+                )
             )
 
         if polygon_geometry is not None:
