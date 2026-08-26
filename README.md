@@ -22,7 +22,7 @@ OCR → spreadsheet cleanup → CSV import → point sorting → polygon creatio
 This plugin reduces that workflow to a screenshot, a review table and one
 button.
 
-## Current features — v0.6.2
+## Current features — v0.6.3 beta
 
 - Open PNG/JPG images or paste a screenshot from the clipboard.
 - Offline recognition with RapidOCR.
@@ -46,6 +46,7 @@ button.
 - CRS-aware line length, perimeter and area calculation.
 - Green, yellow and red OCR-confidence highlighting with percentage tooltips.
 - CSV export of the reviewed table with DMS, decimal coordinates and OCR confidence.
+- Spreadsheet-style manual entry with Excel paste and live two-way DMS/DD conversion.
 
 Supported input layout:
 
