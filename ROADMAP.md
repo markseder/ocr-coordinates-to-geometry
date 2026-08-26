@@ -7,11 +7,11 @@ tests, documentation and a real QGIS 4 field test.
 
 ## v0.3 — Product foundation
 
-- [ ] English/Russian interface using Qt translation files.
-- [ ] Plugin icon and consistent product name.
-- [ ] About, diagnostics and support links.
-- [ ] Persistent user settings.
-- [ ] QGIS official repository packaging and validation.
+- [x] English/Russian interface and extensible translation catalog.
+- [x] Plugin icon and consistent product name.
+- [x] About, diagnostics and support links.
+- [x] Persistent user settings.
+- [x] QGIS official repository packaging and validation.
 - [ ] Sanitized sample-image test collection.
 
 ## v0.4 — Coordinate formats

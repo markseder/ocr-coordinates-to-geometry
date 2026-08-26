@@ -1,18 +1,21 @@
 [general]
-name=OCR Coordinates to Geometry
+name=OCR2Geometry
 description=Create numbered corner points, lines and polygons from screenshots of DMS coordinate tables.
-version=0.2.0
+description[ru]=Создание угловых точек, линий и полигонов из скриншотов таблиц координат.
+version=0.3.0
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 author=Markseder
-email=
-about=Recognizes seven-column coordinate tables (point, latitude DMS, longitude DMS), lets the user correct the result, and creates geometry in EPSG:4326. The Close line option repeats the first vertex at the end.
+email=markseder@users.noreply.github.com
+about=Recognizes seven-column DMS coordinate tables, lets the user review the result, and creates geometry in EPSG:4326. RapidOCR and ONNX Runtime are external dependencies installed on demand into the QGIS user profile. Internet access is required only for the initial dependency installation. Current automatic setup is tested on Windows 10/11.
+about[ru]=Распознаёт семиколоночные таблицы координат ГГ ММ СС, позволяет проверить результат и создаёт геометрию в EPSG:4326. RapidOCR и ONNX Runtime устанавливаются по запросу в профиль пользователя QGIS. Интернет требуется только при первой установке зависимостей. Автоматическая установка проверена в Windows 10/11.
 category=Vector
 tags=ocr,coordinates,dms,points,line,polygon,vector
 homepage=https://github.com/markseder/ocr-coordinates-to-geometry
 repository=https://github.com/markseder/ocr-coordinates-to-geometry
 tracker=https://github.com/markseder/ocr-coordinates-to-geometry/issues
 experimental=True
-changelog=0.2.0: Automatic one-click RapidOCR installation into the user QGIS profile. No administrator rights required.
+icon=icon.svg
+changelog=0.3.0: Added OCR2Geometry branding, English/Russian UI, a custom icon, persistent settings, About and diagnostics dialogs, and publication validation.
 deprecated=False
 hasProcessingProvider=False

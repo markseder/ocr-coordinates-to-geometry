@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import os
+import platform
 import tempfile
 import time
+from pathlib import Path
 
-from qgis.PyQt.QtCore import Qt
-from qgis.PyQt.QtGui import QPixmap
+from qgis.PyQt.QtCore import Qt, QUrl
+from qgis.PyQt.QtGui import QDesktopServices, QPixmap
 from qgis.PyQt.QtWidgets import (
     QCheckBox,
     QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QGridLayout,
     QGroupBox,
@@ -24,6 +27,7 @@ from qgis.PyQt.QtWidgets import (
     QProgressDialog,
     QApplication,
     QVBoxLayout,
+    QTextEdit,
 )
 from qgis.core import (
     QgsFeature,
@@ -31,69 +35,85 @@ from qgis.core import (
     QgsGeometry,
     QgsPointXY,
     QgsProject,
+    QgsApplication,
+    QgsSettings,
+    Qgis,
     QgsVectorLayer,
 )
 from qgis.PyQt.QtCore import QVariant
 
 from .core import CoordinateRow, closed_vertices, row_from_values
 from .ocr import OcrUnavailableError, recognize_lines
-
-
-HEADERS = ["№", "Широта °", "′", "″", "Долгота °", "′", "″"]
+from .i18n import translate
 
 
 class OcrCoordinatesDialog(QDialog):
-    def __init__(self, iface, parent=None):
+    SETTINGS_PREFIX = "OCR2Geometry"
+
+    def __init__(self, iface, locale_name=None, parent=None):
         super().__init__(parent)
         self.iface = iface
+        self.locale = locale_name or QgsApplication.locale()
+        self.settings = QgsSettings()
         self.image_path = ""
         self.temp_image_path = ""
-        self.setWindowTitle("OCR координат → геометрия")
-        self.resize(820, 620)
+        self.setWindowTitle(self.tr("window_title"))
+        self.resize(
+            int(self.settings.value(f"{self.SETTINGS_PREFIX}/width", 820)),
+            int(self.settings.value(f"{self.SETTINGS_PREFIX}/height", 620)),
+        )
         self._build_ui()
+        self._restore_options()
+
+    def tr(self, key, **values):
+        return translate(key, self.locale, **values)
 
     def _build_ui(self):
         root = QVBoxLayout(self)
         buttons = QHBoxLayout()
-        self.open_button = QPushButton("Открыть изображение…")
-        self.paste_button = QPushButton("Вставить из буфера")
-        self.recognize_button = QPushButton("Распознать")
-        self.install_ocr_button = QPushButton("Установить OCR")
+        self.open_button = QPushButton(self.tr("open_image"))
+        self.paste_button = QPushButton(self.tr("paste_clipboard"))
+        self.recognize_button = QPushButton(self.tr("recognize"))
+        self.install_ocr_button = QPushButton(self.tr("install_ocr"))
+        self.about_button = QPushButton(self.tr("about"))
         buttons.addWidget(self.open_button)
         buttons.addWidget(self.paste_button)
         buttons.addStretch(1)
         buttons.addWidget(self.install_ocr_button)
+        buttons.addWidget(self.about_button)
         buttons.addWidget(self.recognize_button)
         root.addLayout(buttons)
 
-        self.preview = QLabel("Откройте изображение или вставьте скриншот из буфера")
+        self.preview = QLabel(self.tr("preview_hint"))
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview.setMinimumHeight(150)
         self.preview.setStyleSheet("QLabel { border: 1px solid #999; background: #f4f4f4; }")
         root.addWidget(self.preview)
 
         self.table = QTableWidget(0, 7)
-        self.table.setHorizontalHeaderLabels(HEADERS)
+        self.table.setHorizontalHeaderLabels(
+            [self.tr("point"), self.tr("latitude"), "′", "″", self.tr("longitude"), "′", "″"]
+        )
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         root.addWidget(self.table, 1)
 
         table_buttons = QHBoxLayout()
-        self.add_row_button = QPushButton("Добавить строку")
-        self.delete_row_button = QPushButton("Удалить выбранные строки")
+        self.add_row_button = QPushButton(self.tr("add_row"))
+        self.delete_row_button = QPushButton(self.tr("delete_rows"))
         table_buttons.addWidget(self.add_row_button)
         table_buttons.addWidget(self.delete_row_button)
         table_buttons.addStretch(1)
         root.addLayout(table_buttons)
 
-        options = QGroupBox("Результат (EPSG:4326 — WGS 84)")
+        options = QGroupBox(self.tr("result_group"))
         option_grid = QGridLayout(options)
-        self.points_check = QCheckBox("Создать угловые точки")
+        self.points_check = QCheckBox(self.tr("create_points"))
         self.points_check.setChecked(True)
-        self.labels_check = QCheckBox("Подписать номера точек")
+        self.labels_check = QCheckBox(self.tr("label_points"))
         self.labels_check.setChecked(True)
-        self.close_check = QCheckBox("Замкнуть линию (повторить первую точку в конце)")
+        self.close_check = QCheckBox(self.tr("close_line"))
         self.close_check.setChecked(True)
-        self.polygon_check = QCheckBox("Дополнительно создать полигон")
+        self.polygon_check = QCheckBox(self.tr("create_polygon"))
         option_grid.addWidget(self.points_check, 0, 0)
         option_grid.addWidget(self.labels_check, 0, 1)
         option_grid.addWidget(self.close_check, 1, 0, 1, 2)
@@ -101,8 +121,8 @@ class OcrCoordinatesDialog(QDialog):
         root.addWidget(options)
 
         bottom = QHBoxLayout()
-        self.status = QLabel("Готово к работе")
-        self.create_button = QPushButton("Добавить в проект QGIS")
+        self.status = QLabel(self.tr("ready"))
+        self.create_button = QPushButton(self.tr("add_to_qgis"))
         bottom.addWidget(self.status, 1)
         bottom.addWidget(self.create_button)
         root.addLayout(bottom)
@@ -111,9 +131,35 @@ class OcrCoordinatesDialog(QDialog):
         self.paste_button.clicked.connect(self.paste_image)
         self.recognize_button.clicked.connect(self.recognize)
         self.install_ocr_button.clicked.connect(self.install_ocr)
+        self.about_button.clicked.connect(self.show_about)
         self.add_row_button.clicked.connect(self.add_empty_row)
         self.delete_row_button.clicked.connect(self.delete_selected_rows)
         self.create_button.clicked.connect(self.create_geometry)
+
+    def _restore_options(self):
+        for name, widget, default in (
+            ("points", self.points_check, True),
+            ("labels", self.labels_check, True),
+            ("close", self.close_check, True),
+            ("polygon", self.polygon_check, False),
+        ):
+            value = self.settings.value(f"{self.SETTINGS_PREFIX}/{name}", default, type=bool)
+            widget.setChecked(value)
+
+    def _save_options(self):
+        self.settings.setValue(f"{self.SETTINGS_PREFIX}/width", self.width())
+        self.settings.setValue(f"{self.SETTINGS_PREFIX}/height", self.height())
+        for name, widget in (
+            ("points", self.points_check),
+            ("labels", self.labels_check),
+            ("close", self.close_check),
+            ("polygon", self.polygon_check),
+        ):
+            self.settings.setValue(f"{self.SETTINGS_PREFIX}/{name}", widget.isChecked())
+
+    def closeEvent(self, event):
+        self._save_options()
+        super().closeEvent(event)
 
     def add_empty_row(self):
         row_index = self.table.rowCount()
@@ -130,8 +176,12 @@ class OcrCoordinatesDialog(QDialog):
             self.table.removeRow(row_index)
 
     def open_image(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Выберите таблицу координат", "", "Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)")
+        start_dir = self.settings.value(f"{self.SETTINGS_PREFIX}/last_image_dir", "")
+        path, _ = QFileDialog.getOpenFileName(
+            self, self.tr("choose_table"), start_dir, self.tr("images_filter")
+        )
         if path:
+            self.settings.setValue(f"{self.SETTINGS_PREFIX}/last_image_dir", str(Path(path).parent))
             self.set_image(path)
 
     def paste_image(self):
@@ -139,11 +189,11 @@ class OcrCoordinatesDialog(QDialog):
 
         image = QApplication.clipboard().image()
         if image.isNull():
-            QMessageBox.warning(self, "Буфер обмена", "В буфере обмена нет изображения.")
+            QMessageBox.warning(self, self.tr("clipboard"), self.tr("clipboard_empty"))
             return
         path = os.path.join(tempfile.gettempdir(), "qgis_ocr_coordinates_clipboard.png")
         if not image.save(path, "PNG"):
-            QMessageBox.critical(self, "Ошибка", "Не удалось сохранить изображение из буфера.")
+            QMessageBox.critical(self, self.tr("error"), self.tr("clipboard_save_error"))
             return
         self.temp_image_path = path
         self.set_image(path)
@@ -156,45 +206,44 @@ class OcrCoordinatesDialog(QDialog):
 
     def recognize(self):
         if not self.image_path:
-            QMessageBox.warning(self, "Нет изображения", "Сначала откройте или вставьте изображение.")
+            QMessageBox.warning(self, self.tr("no_image"), self.tr("open_first"))
             return
-        self.status.setText("Распознавание…")
+        self.status.setText(self.tr("recognizing"))
         from .dependencies import rapidocr_available
 
         if not rapidocr_available():
             answer = QMessageBox.question(
                 self,
-                "Установка RapidOCR",
-                "Для распознавания нужно один раз установить RapidOCR (около 100–200 МБ).\n\n"
-                "Он будет установлен автоматически в профиль QGIS без прав администратора. Продолжить?",
+                self.tr("ocr_setup_title"),
+                self.tr("ocr_setup_question"),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.Yes,
             )
             if answer != QMessageBox.StandardButton.Yes or not self.install_ocr():
-                self.status.setText("RapidOCR не установлен")
+                self.status.setText(self.tr("ocr_missing"))
                 return
         try:
             lines = recognize_lines(self.image_path)
         except OcrUnavailableError as error:
-            QMessageBox.critical(self, "RapidOCR не установлен", str(error))
-            self.status.setText("Нужна установка RapidOCR")
+            QMessageBox.critical(self, self.tr("ocr_missing"), str(error))
+            self.status.setText(self.tr("ocr_need_install"))
             return
         from .core import parse_lines
 
         rows, warnings = parse_lines(lines)
         self.fill_table(rows)
-        self.status.setText(f"Распознано точек: {len(rows)}")
+        self.status.setText(self.tr("recognized_points", count=len(rows)))
         if warnings:
-            QMessageBox.warning(self, "Проверьте распознавание", "\n".join(warnings[:12]))
+            QMessageBox.warning(self, self.tr("check_recognition"), "\n".join(warnings[:12]))
 
     def install_ocr(self):
         from .dependencies import install_rapidocr, rapidocr_available, vendor_directory
 
         if rapidocr_available():
-            self.status.setText("RapidOCR уже установлен")
+            self.status.setText(self.tr("ocr_already"))
             return True
-        progress = QProgressDialog("Подготовка установки…", "Отмена", 0, 0, self)
-        progress.setWindowTitle("Установка RapidOCR")
+        progress = QProgressDialog(self.tr("preparing_install"), self.tr("cancel"), 0, 0, self)
+        progress.setWindowTitle(self.tr("ocr_setup_title"))
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(0)
         progress.show()
@@ -204,28 +253,98 @@ class OcrCoordinatesDialog(QDialog):
         def update_progress(line):
             now = time.monotonic()
             if now - last_update[0] > 0.1:
-                progress.setLabelText(line[:160] or "Загрузка компонентов OCR…")
+                progress.setLabelText(line[:160] or self.tr("downloading"))
                 QApplication.processEvents()
                 last_update[0] = now
 
         ok, log = install_rapidocr(update_progress, progress.wasCanceled)
         progress.close()
         if ok:
-            self.status.setText("RapidOCR установлен — можно распознавать")
+            self.status.setText(self.tr("ocr_ready_status"))
             QMessageBox.information(
                 self,
-                "RapidOCR готов",
-                "Компоненты OCR установлены. Повторно устанавливать их при следующем запуске не нужно.",
+                self.tr("ocr_ready_title"),
+                self.tr("ocr_ready_text"),
             )
             return True
         tail = "\n".join(log.splitlines()[-12:])
         QMessageBox.critical(
             self,
-            "Не удалось установить RapidOCR",
-            f"Проверьте интернет и повторите установку.\n\nПапка: {vendor_directory()}\n\n{tail}",
+            self.tr("ocr_install_failed"),
+            f"{self.tr('ocr_install_help')}\n\n{vendor_directory()}\n\n{tail}",
         )
-        self.status.setText("Ошибка установки RapidOCR")
+        self.status.setText(self.tr("ocr_install_error"))
         return False
+
+    def diagnostics_text(self):
+        from .dependencies import qgis_python_executable, rapidocr_available, vendor_directory
+
+        try:
+            python_executable = str(qgis_python_executable())
+        except RuntimeError as error:
+            python_executable = str(error)
+        return "\n".join(
+            [
+                "OCR2Geometry: 0.3.0",
+                f"QGIS: {Qgis.QGIS_VERSION}",
+                f"Locale: {self.locale}",
+                f"OS: {platform.platform()}",
+                f"Python: {platform.python_version()}",
+                f"QGIS Python: {python_executable}",
+                f"RapidOCR: {'available' if rapidocr_available() else 'not installed'}",
+                f"OCR directory: {vendor_directory()}",
+            ]
+        )
+
+    def show_about(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(self.tr("about_title"))
+        dialog.resize(620, 430)
+        layout = QVBoxLayout(dialog)
+        title = QLabel("<h2>OCR2Geometry 0.3.0</h2>")
+        title.setTextFormat(Qt.TextFormat.RichText)
+        layout.addWidget(title)
+        description = QLabel(
+            "Screenshot → OCR → reviewed coordinates → QGIS geometry<br>"
+            "<a href='https://github.com/markseder/ocr-coordinates-to-geometry'>"
+            "github.com/markseder/ocr-coordinates-to-geometry</a>"
+        )
+        description.setOpenExternalLinks(True)
+        layout.addWidget(description)
+        layout.addWidget(QLabel(self.tr("diagnostics")))
+        diagnostics = QTextEdit()
+        diagnostics.setReadOnly(True)
+        diagnostics.setPlainText(self.diagnostics_text())
+        layout.addWidget(diagnostics, 1)
+
+        buttons = QDialogButtonBox()
+        copy_button = buttons.addButton(
+            self.tr("copy_diagnostics"), QDialogButtonBox.ButtonRole.ActionRole
+        )
+        github_button = buttons.addButton(
+            self.tr("open_github"), QDialogButtonBox.ButtonRole.ActionRole
+        )
+        support_button = buttons.addButton(
+            self.tr("support_project"), QDialogButtonBox.ButtonRole.ActionRole
+        )
+        close_button = buttons.addButton(QDialogButtonBox.StandardButton.Close)
+        close_button.setText(self.tr("close"))
+        copy_button.clicked.connect(
+            lambda: QApplication.clipboard().setText(diagnostics.toPlainText())
+        )
+        github_button.clicked.connect(
+            lambda: QDesktopServices.openUrl(
+                QUrl("https://github.com/markseder/ocr-coordinates-to-geometry")
+            )
+        )
+        support_button.clicked.connect(
+            lambda: QDesktopServices.openUrl(
+                QUrl("https://github.com/markseder/ocr-coordinates-to-geometry")
+            )
+        )
+        close_button.clicked.connect(dialog.accept)
+        layout.addWidget(buttons)
+        dialog.exec()
 
     def fill_table(self, rows):
         self.table.setRowCount(len(rows))
@@ -240,27 +359,27 @@ class OcrCoordinatesDialog(QDialog):
             for column in range(7):
                 item = self.table.item(row_index, column)
                 if item is None or not item.text().strip():
-                    raise ValueError(f"Строка {row_index + 1}: пустая ячейка")
+                    raise ValueError(self.tr("empty_cell", row=row_index + 1))
                 values.append(float(item.text().strip().replace(",", ".")))
             rows.append(row_from_values(values))
         rows.sort(key=lambda row: row.point_id)
         point_ids = [row.point_id for row in rows]
         if len(point_ids) != len(set(point_ids)):
-            raise ValueError("Номера точек не должны повторяться")
+            raise ValueError(self.tr("duplicate_ids"))
         return rows
 
     def create_geometry(self):
         try:
             rows = self.rows_from_table()
         except ValueError as error:
-            QMessageBox.critical(self, "Ошибка в таблице", str(error))
+            QMessageBox.critical(self, self.tr("table_error"), str(error))
             return
         if len(rows) < 2:
-            QMessageBox.warning(self, "Недостаточно точек", "Для линии нужны минимум две точки.")
+            QMessageBox.warning(self, self.tr("not_enough_points"), self.tr("line_minimum"))
             return
         project = QgsProject.instance()
         if self.points_check.isChecked():
-            point_layer = QgsVectorLayer("Point?crs=EPSG:4326", "OCR — угловые точки", "memory")
+            point_layer = QgsVectorLayer("Point?crs=EPSG:4326", self.tr("corner_layer"), "memory")
             provider = point_layer.dataProvider()
             provider.addAttributes([QgsField("point_no", QVariant.Int), QgsField("latitude", QVariant.Double), QgsField("longitude", QVariant.Double)])
             point_layer.updateFields()
@@ -286,7 +405,7 @@ class OcrCoordinatesDialog(QDialog):
             project.addMapLayer(point_layer)
 
         vertices = closed_vertices(rows, self.close_check.isChecked())
-        line_layer = QgsVectorLayer("LineString?crs=EPSG:4326", "OCR — линия", "memory")
+        line_layer = QgsVectorLayer("LineString?crs=EPSG:4326", self.tr("line_layer"), "memory")
         line_feature = QgsFeature()
         line_feature.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(x, y) for x, y in vertices]))
         line_layer.dataProvider().addFeature(line_feature)
@@ -295,10 +414,10 @@ class OcrCoordinatesDialog(QDialog):
 
         if self.polygon_check.isChecked():
             if len(rows) < 3:
-                QMessageBox.warning(self, "Полигон", "Для полигона нужны минимум три точки. Точки и линия уже созданы.")
+                QMessageBox.warning(self, self.tr("polygon"), self.tr("polygon_minimum"))
             else:
                 ring = closed_vertices(rows, True)
-                polygon_layer = QgsVectorLayer("Polygon?crs=EPSG:4326", "OCR — полигон", "memory")
+                polygon_layer = QgsVectorLayer("Polygon?crs=EPSG:4326", self.tr("polygon_layer"), "memory")
                 polygon_feature = QgsFeature()
                 polygon_feature.setGeometry(QgsGeometry.fromPolygonXY([[QgsPointXY(x, y) for x, y in ring]]))
                 polygon_layer.dataProvider().addFeature(polygon_feature)
@@ -306,5 +425,7 @@ class OcrCoordinatesDialog(QDialog):
                 project.addMapLayer(polygon_layer)
 
         self.iface.mapCanvas().zoomToFullExtent()
-        self.status.setText(f"Добавлено вершин: {len(rows)}")
-        self.iface.messageBar().pushSuccess("OCR координат", f"Добавлено точек: {len(rows)}")
+        self.status.setText(self.tr("vertices_added", count=len(rows)))
+        self.iface.messageBar().pushSuccess(
+            self.tr("plugin_name"), self.tr("points_added", count=len(rows))
+        )

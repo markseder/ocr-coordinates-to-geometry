@@ -20,7 +20,7 @@ OCR → spreadsheet cleanup → CSV import → point sorting → polygon creatio
 This plugin reduces that workflow to a screenshot, a review table and one
 button.
 
-## Current features — v0.2.0
+## Current features — v0.3.0
 
 - Open PNG/JPG images or paste a screenshot from the clipboard.
 - Offline recognition with RapidOCR.
@@ -32,6 +32,8 @@ button.
 - Optional polygon layer.
 - EPSG:4326 output.
 - No image or coordinate upload to external services.
+- English and Russian interface selected from the QGIS locale.
+- OCR2Geometry icon, diagnostics and persistent user options.
 
 Supported input layout:
 
