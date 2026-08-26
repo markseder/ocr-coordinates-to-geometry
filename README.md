@@ -10,7 +10,7 @@
 Turn a screenshot of a coordinate table into numbered points, a line and an
 optional polygon directly in QGIS.
 
-![OCR2Geometry v0.3.0 running in QGIS 4](docs/screenshots/ocr2geometry-v0.3.0-ru.jpg)
+![OCR2Geometry v0.5.0 English interface in QGIS 4](docs/screenshots/ocr2geometry-v0.5.0-en.png)
 
 *OCR2Geometry v0.3.0 on QGIS 4.0.0 with local RapidOCR diagnostics.*
 
@@ -59,7 +59,7 @@ Compatibility: QGIS 4.0–4.99, Windows 10 and Windows 11.
 
 ## Planned development
 
-The current beta adds source CRS selection through the standard QGIS catalog
+Version 0.5 adds source CRS selection through the standard QGIS catalog
 and custom output-layer names. Coordinate transformations remain a standard
 QGIS responsibility. Future releases focus on quality control, PDF/batch
 processing and more UI languages.
