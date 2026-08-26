@@ -36,7 +36,7 @@ enums.
 
 ## Install from ZIP
 
-1. Download `ocr_coordinates_to_geometry.zip` from Releases.
+1. Download [`dist/ocr_coordinates_to_geometry.zip`](dist/ocr_coordinates_to_geometry.zip).
 2. In QGIS open **Plugins → Manage and Install Plugins → Install from ZIP**.
 3. Select the ZIP and confirm installation.
 4. Start **OCR Coordinates to Geometry** from the Plugins menu or toolbar.

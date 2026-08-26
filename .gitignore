@@ -1,7 +1,8 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
-dist/
+dist/*
+!dist/ocr_coordinates_to_geometry.zip
 *.zip
 .idea/
 .vscode/
