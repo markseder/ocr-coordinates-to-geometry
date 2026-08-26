@@ -12,7 +12,7 @@ optional polygon directly in QGIS.
 
 ![OCR2Geometry v0.5.0 English interface in QGIS 4](docs/screenshots/ocr2geometry-v0.5.0-en.png)
 
-*OCR2Geometry v0.3.0 on QGIS 4.0.0 with local RapidOCR diagnostics.*
+*OCR2Geometry v0.5.0 in QGIS 4 with source CRS and output-layer naming.*
 
 ## Why this plugin exists
 
@@ -22,7 +22,7 @@ OCR → spreadsheet cleanup → CSV import → point sorting → polygon creatio
 This plugin reduces that workflow to a screenshot, a review table and one
 button.
 
-## Current features — v0.4.0
+## Current features — v0.6.0 beta
 
 - Open PNG/JPG images or paste a screenshot from the clipboard.
 - Offline recognition with RapidOCR.
@@ -32,7 +32,8 @@ button.
 - Numbered corner-point layer.
 - Open or closed line in point-number order.
 - Optional polygon layer.
-- EPSG:4326 output.
+- Source CRS selection from the standard QGIS catalog (EPSG:4326 by default).
+- Custom base names for output layers.
 - No image or coordinate upload to external services.
 - English and Russian interface selected from the QGIS locale.
 - OCR2Geometry icon, diagnostics and persistent user options.
@@ -40,6 +41,9 @@ button.
 - Latitude/longitude reversal, N/S/E/W hemispheres and signed coordinates.
 - Plain-text coordinate paste and source-order controls.
 - Live decimal-degree preview columns.
+- Pre-creation coordinate and geometry quality review.
+- Missing point-number, coincident-vertex and invalid-polygon warnings.
+- CRS-aware line length, perimeter and area calculation.
 
 Supported input layout:
 
