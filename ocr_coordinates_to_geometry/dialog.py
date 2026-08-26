@@ -28,6 +28,7 @@ from qgis.PyQt.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
     QProgressDialog,
+    QLineEdit,
     QApplication,
     QVBoxLayout,
     QTextEdit,
@@ -42,7 +43,9 @@ from qgis.core import (
     QgsSettings,
     Qgis,
     QgsVectorLayer,
+    QgsCoordinateReferenceSystem,
 )
+from qgis.gui import QgsProjectionSelectionWidget
 from qgis.PyQt.QtCore import QVariant
 
 from .core import CoordinateRow, closed_vertices, parse_coordinate_lines, row_from_values
@@ -111,9 +114,12 @@ class OcrCoordinatesDialog(QDialog):
         self.order_combo = QComboBox()
         self.order_combo.addItem(self.tr("sort_points"), True)
         self.order_combo.addItem(self.tr("preserve_order"), False)
+        self.crs_widget = QgsProjectionSelectionWidget()
+        self.crs_widget.setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
         input_form.addRow(self.tr("coordinate_format"), self.format_combo)
         input_form.addRow(self.tr("axis_order"), self.axis_combo)
         input_form.addRow(self.tr("row_order"), self.order_combo)
+        input_form.addRow(self.tr("source_crs"), self.crs_widget)
         root.addWidget(input_group)
 
         self.table = QTableWidget(0, 9)
@@ -143,6 +149,8 @@ class OcrCoordinatesDialog(QDialog):
 
         options = QGroupBox(self.tr("result_group"))
         option_grid = QGridLayout(options)
+        self.layer_name_edit = QLineEdit()
+        self.layer_name_edit.setPlaceholderText("OCR2Geometry")
         self.points_check = QCheckBox(self.tr("create_points"))
         self.points_check.setChecked(True)
         self.labels_check = QCheckBox(self.tr("label_points"))
@@ -150,10 +158,12 @@ class OcrCoordinatesDialog(QDialog):
         self.close_check = QCheckBox(self.tr("close_line"))
         self.close_check.setChecked(True)
         self.polygon_check = QCheckBox(self.tr("create_polygon"))
-        option_grid.addWidget(self.points_check, 0, 0)
-        option_grid.addWidget(self.labels_check, 0, 1)
-        option_grid.addWidget(self.close_check, 1, 0, 1, 2)
-        option_grid.addWidget(self.polygon_check, 2, 0, 1, 2)
+        option_grid.addWidget(QLabel(self.tr("layer_name")), 0, 0)
+        option_grid.addWidget(self.layer_name_edit, 0, 1)
+        option_grid.addWidget(self.points_check, 1, 0)
+        option_grid.addWidget(self.labels_check, 1, 1)
+        option_grid.addWidget(self.close_check, 2, 0, 1, 2)
+        option_grid.addWidget(self.polygon_check, 3, 0, 1, 2)
         root.addWidget(options)
 
         bottom = QHBoxLayout()
@@ -193,6 +203,13 @@ class OcrCoordinatesDialog(QDialog):
                 index = combo.findData(saved if key != "row_order" else str(saved).lower() == "true")
                 if index >= 0:
                     combo.setCurrentIndex(index)
+        self.layer_name_edit.setText(
+            self.settings.value(f"{self.SETTINGS_PREFIX}/layer_name", "OCR2Geometry")
+        )
+        saved_crs = self.settings.value(f"{self.SETTINGS_PREFIX}/source_crs", "EPSG:4326")
+        crs = QgsCoordinateReferenceSystem(str(saved_crs))
+        if crs.isValid():
+            self.crs_widget.setCrs(crs)
 
     def _save_options(self):
         self.settings.setValue(f"{self.SETTINGS_PREFIX}/width", self.width())
@@ -207,6 +224,12 @@ class OcrCoordinatesDialog(QDialog):
         self.settings.setValue(f"{self.SETTINGS_PREFIX}/format", self.format_combo.currentData())
         self.settings.setValue(f"{self.SETTINGS_PREFIX}/axis_order", self.axis_combo.currentData())
         self.settings.setValue(f"{self.SETTINGS_PREFIX}/row_order", self.order_combo.currentData())
+        self.settings.setValue(
+            f"{self.SETTINGS_PREFIX}/layer_name", self.layer_name_edit.text().strip()
+        )
+        self.settings.setValue(
+            f"{self.SETTINGS_PREFIX}/source_crs", self.crs_widget.crs().authid()
+        )
 
     def closeEvent(self, event):
         self._save_options()
@@ -360,7 +383,7 @@ class OcrCoordinatesDialog(QDialog):
             python_executable = str(error)
         return "\n".join(
             [
-                "OCR2Geometry: 0.4.0",
+                "OCR2Geometry: 0.5.0-beta1",
                 f"QGIS: {Qgis.QGIS_VERSION}",
                 f"Locale: {self.locale}",
                 f"OS: {platform.platform()}",
@@ -376,7 +399,7 @@ class OcrCoordinatesDialog(QDialog):
         dialog.setWindowTitle(self.tr("about_title"))
         dialog.resize(620, 430)
         layout = QVBoxLayout(dialog)
-        title = QLabel("<h2>OCR2Geometry 0.4.0</h2>")
+        title = QLabel("<h2>OCR2Geometry 0.5.0-beta1</h2>")
         title.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(title)
         description = QLabel(
@@ -481,8 +504,15 @@ class OcrCoordinatesDialog(QDialog):
             QMessageBox.warning(self, self.tr("not_enough_points"), self.tr("line_minimum"))
             return
         project = QgsProject.instance()
+        source_crs = self.crs_widget.crs()
+        if not source_crs.isValid():
+            QMessageBox.critical(self, self.tr("crs_error"), self.tr("invalid_crs"))
+            return
+        base_name = self.layer_name_edit.text().strip() or "OCR2Geometry"
+        self._save_options()
         if self.points_check.isChecked():
-            point_layer = QgsVectorLayer("Point?crs=EPSG:4326", self.tr("corner_layer"), "memory")
+            point_layer = QgsVectorLayer("Point", self.tr("named_points", name=base_name), "memory")
+            point_layer.setCrs(source_crs)
             provider = point_layer.dataProvider()
             provider.addAttributes([QgsField("point_no", QVariant.Int), QgsField("latitude", QVariant.Double), QgsField("longitude", QVariant.Double)])
             point_layer.updateFields()
@@ -508,7 +538,8 @@ class OcrCoordinatesDialog(QDialog):
             project.addMapLayer(point_layer)
 
         vertices = closed_vertices(rows, self.close_check.isChecked())
-        line_layer = QgsVectorLayer("LineString?crs=EPSG:4326", self.tr("line_layer"), "memory")
+        line_layer = QgsVectorLayer("LineString", self.tr("named_line", name=base_name), "memory")
+        line_layer.setCrs(source_crs)
         line_feature = QgsFeature()
         line_feature.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(x, y) for x, y in vertices]))
         line_layer.dataProvider().addFeature(line_feature)
@@ -520,7 +551,8 @@ class OcrCoordinatesDialog(QDialog):
                 QMessageBox.warning(self, self.tr("polygon"), self.tr("polygon_minimum"))
             else:
                 ring = closed_vertices(rows, True)
-                polygon_layer = QgsVectorLayer("Polygon?crs=EPSG:4326", self.tr("polygon_layer"), "memory")
+                polygon_layer = QgsVectorLayer("Polygon", self.tr("named_polygon", name=base_name), "memory")
+                polygon_layer.setCrs(source_crs)
                 polygon_feature = QgsFeature()
                 polygon_feature.setGeometry(QgsGeometry.fromPolygonXY([[QgsPointXY(x, y) for x, y in ring]]))
                 polygon_layer.dataProvider().addFeature(polygon_feature)
