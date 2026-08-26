@@ -383,7 +383,7 @@ class OcrCoordinatesDialog(QDialog):
             python_executable = str(error)
         return "\n".join(
             [
-                "OCR2Geometry: 0.5.0-beta2",
+                "OCR2Geometry: 0.5.0",
                 f"QGIS: {Qgis.QGIS_VERSION}",
                 f"Locale: {self.locale}",
                 f"OS: {platform.platform()}",
@@ -399,7 +399,7 @@ class OcrCoordinatesDialog(QDialog):
         dialog.setWindowTitle(self.tr("about_title"))
         dialog.resize(620, 430)
         layout = QVBoxLayout(dialog)
-        title = QLabel("<h2>OCR2Geometry 0.5.0-beta2</h2>")
+        title = QLabel("<h2>OCR2Geometry 0.5.0</h2>")
         title.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(title)
         description = QLabel(
