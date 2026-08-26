@@ -3,6 +3,8 @@ import unittest
 from ocr_coordinates_to_geometry.core import (
     closed_vertices,
     coordinate_quality_issues,
+    coordinate_csv_row,
+    CSV_HEADERS,
     decimal_to_dms,
     dms_to_decimal,
     numbers_from_text,
@@ -119,6 +121,18 @@ class CoreTests(unittest.TestCase):
             row_from_values([3, 59, 1, 0, 93, 1, 0]),
         ]
         self.assertIn(("repeated_closing_vertex", (1, 3)), coordinate_quality_issues(rows))
+
+    def test_csv_row_contains_decimal_coordinates_and_confidence(self):
+        row = row_from_values([1, 59, 46, 15, 93, 27, 0])
+        record = coordinate_csv_row(row, (0.99, 0.87, 0.95))
+        self.assertEqual(len(CSV_HEADERS), len(record))
+        self.assertEqual("59.77083333", record[7])
+        self.assertEqual("93.45000000", record[8])
+        self.assertEqual("87.0", record[9])
+
+    def test_csv_row_leaves_manual_confidence_empty(self):
+        row = row_from_values([1, 59, 46, 15, 93, 27, 0])
+        self.assertEqual("", coordinate_csv_row(row)[9])
 
 
 if __name__ == "__main__":
