@@ -23,15 +23,14 @@ tests, documentation and a real QGIS 4 field test.
 - [ ] Paste recognized/plain coordinate text without an image.
 - [ ] Row-order preservation or sorting by point identifier.
 
-## v0.5 — CRS and geodetic workflows
+## v0.5 — Source CRS and layer naming
 
-- [ ] Source and destination CRS selectors.
-- [ ] Transformation preview before geometry creation.
-- [ ] GSK-2011 geographic and projected workflows.
-- [ ] SK-42 / Pulkovo 1942 and Gauss–Krüger zones.
-- [ ] SK-95 workflows.
-- [ ] Automatic zone suggestions without silent datum guessing.
-- [ ] Transformation method and operation metadata recorded in output.
+- [x] Source CRS selector using the standard QGIS catalog.
+- [x] EPSG:4326 as the safe default.
+- [x] Custom base name for created layers.
+- [x] Persist the selected CRS and layer name.
+- [x] Leave coordinate transformation to standard QGIS tools.
+- [ ] Confirm v0.5.0 in QGIS 4.0 on Windows 10/11.
 
 ## v0.6 — Quality control
 
