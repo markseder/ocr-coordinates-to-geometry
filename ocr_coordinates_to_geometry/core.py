@@ -215,3 +215,29 @@ def closed_vertices(rows: Sequence[CoordinateRow], close: bool) -> list[tuple[fl
     if close and vertices and vertices[-1] != vertices[0]:
         vertices.append(vertices[0])
     return vertices
+
+
+def coordinate_quality_issues(rows: Sequence[CoordinateRow]) -> list[tuple[str, tuple[int, ...]]]:
+    """Return dependency-free coordinate-table issues for UI reporting."""
+    issues: list[tuple[str, tuple[int, ...]]] = []
+    point_ids = [row.point_id for row in rows]
+    duplicate_ids = tuple(sorted({value for value in point_ids if point_ids.count(value) > 1}))
+    if duplicate_ids:
+        issues.append(("duplicate_point_ids", duplicate_ids))
+    if point_ids:
+        present = set(point_ids)
+        missing = tuple(value for value in range(min(point_ids), max(point_ids) + 1) if value not in present)
+        if missing:
+            issues.append(("missing_point_ids", missing))
+    coincident = []
+    for first, second in zip(rows, rows[1:]):
+        if (first.longitude, first.latitude) == (second.longitude, second.latitude):
+            coincident.extend((first.point_id, second.point_id))
+    if coincident:
+        issues.append(("coincident_vertices", tuple(dict.fromkeys(coincident))))
+    if len(rows) > 2 and (rows[0].longitude, rows[0].latitude) == (
+        rows[-1].longitude,
+        rows[-1].latitude,
+    ):
+        issues.append(("repeated_closing_vertex", (rows[0].point_id, rows[-1].point_id)))
+    return issues
