@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import csv
+from io import StringIO
+import math
 import re
 from typing import Iterable, Sequence
 
@@ -10,6 +13,34 @@ from typing import Iterable, Sequence
 NUMBER_RE = re.compile(r"[-+]?\d+(?:[.,]\d+)?")
 HEMISPHERE_RE = re.compile(r"(?<![A-Z])[NSEW](?![A-Z])", re.IGNORECASE)
 FORMATS = ("auto", "dms", "dm", "dd")
+
+
+def split_clipboard_table(text: str) -> list[list[str]]:
+    """Parse table text copied from Excel, CSV or a whitespace table."""
+    lines = [
+        line
+        for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        if line.strip()
+    ]
+    if not lines:
+        return []
+    if "\t" in text:
+        rows = [line.split("\t") for line in lines]
+    elif ";" in text:
+        rows = list(csv.reader(StringIO("\n".join(lines)), delimiter=";"))
+    else:
+        rows = [line.split() for line in lines]
+    return [[cell.strip() for cell in row] for row in rows]
+
+
+def is_header_row(row: Sequence[str]) -> bool:
+    if not row:
+        return False
+    try:
+        float(row[0].replace(",", "."))
+        return False
+    except ValueError:
+        return True
 
 
 @dataclass(frozen=True)
@@ -43,11 +74,13 @@ class CoordinateRow:
 
 
 def format_number(value: float) -> str:
+    if value == 0 and math.copysign(1.0, value) < 0:
+        return "-0"
     return str(int(value)) if value.is_integer() else str(value)
 
 
 def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
-    sign = -1.0 if degrees < 0 else 1.0
+    sign = -1.0 if math.copysign(1.0, degrees) < 0 else 1.0
     return sign * (abs(degrees) + minutes / 60.0 + seconds / 3600.0)
 
 
