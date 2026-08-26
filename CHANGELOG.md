@@ -5,6 +5,17 @@ while it matures toward 1.0.
 
 ## Unreleased
 
+## 0.4.0 — 2026-08-26
+
+- Added automatic/manual DMS, DM and DD coordinate-format selection.
+- Added latitude/longitude axis reversal.
+- Added N/S/E/W hemisphere suffixes and signed values.
+- Added plain-text coordinate paste without an image.
+- Added source-order preservation or point-number sorting.
+- Added live decimal-degree preview columns.
+- Added Matveev Pavel as a developer and project contact.
+- Expanded the parser test suite.
+
 ## 0.3.0 — 2026-08-26
 
 - Adopted the OCR2Geometry product name and custom icon.

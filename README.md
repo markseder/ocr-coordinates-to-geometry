@@ -22,7 +22,7 @@ OCR → spreadsheet cleanup → CSV import → point sorting → polygon creatio
 This plugin reduces that workflow to a screenshot, a review table and one
 button.
 
-## Current features — v0.3.0
+## Current features — v0.4.0
 
 - Open PNG/JPG images or paste a screenshot from the clipboard.
 - Offline recognition with RapidOCR.
@@ -36,6 +36,10 @@ button.
 - No image or coordinate upload to external services.
 - English and Russian interface selected from the QGIS locale.
 - OCR2Geometry icon, diagnostics and persistent user options.
+- Automatic DMS, degrees/decimal-minutes and decimal-degree parsing.
+- Latitude/longitude reversal, N/S/E/W hemispheres and signed coordinates.
+- Plain-text coordinate paste and source-order controls.
+- Live decimal-degree preview columns.
 
 Supported input layout:
 
@@ -92,3 +96,8 @@ read [CONTRIBUTING.md](CONTRIBUTING.md) before sharing documents.
 
 MIT. RapidOCR and its OCR models have their own licences; see the upstream
 [RapidOCR project](https://github.com/RapidAI/RapidOCR).
+
+## Developers
+
+- Markseder
+- Matveev Pavel — <pavelmatveev84@gmail.com>

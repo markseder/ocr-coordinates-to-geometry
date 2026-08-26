@@ -91,13 +91,14 @@ def _recognize_grid_cells(engine, image_path: str | Path) -> list[str]:
     )
     xs = _group_adjacent(np.where((vertical > 0).sum(axis=0) > height * 0.50)[0])
     ys = _group_adjacent(np.where((horizontal > 0).sum(axis=1) > width * 0.33)[0])
-    if len(xs) != 8 or len(ys) < 2:
+    column_count = len(xs) - 1
+    if column_count not in {3, 5, 7} or len(ys) < 2:
         return []
 
     lines = []
     for row_index in range(len(ys) - 1):
         values = []
-        for column in range(7):
+        for column in range(column_count):
             top, bottom = ys[row_index] + 2, ys[row_index + 1] - 2
             left, right = xs[column] + 2, xs[column + 1] - 2
             crop = image[top:bottom, left:right]

@@ -2,9 +2,11 @@ import unittest
 
 from ocr_coordinates_to_geometry.core import (
     closed_vertices,
+    decimal_to_dms,
     dms_to_decimal,
     numbers_from_text,
     parse_lines,
+    parse_coordinate_lines,
     row_from_values,
 )
 
@@ -53,6 +55,47 @@ class CoreTests(unittest.TestCase):
         rows, warnings = parse_lines(["1 59 46 15 93 28 50", "1 59 46 15 93 27 00"])
         self.assertEqual(2, len(rows))
         self.assertIn("Duplicate point numbers: 1", warnings)
+
+    def test_decimal_degrees_are_detected(self):
+        rows, warnings, detected = parse_coordinate_lines(["1 59.770833 93.450000"])
+        self.assertEqual([], warnings)
+        self.assertEqual("dd", detected)
+        self.assertAlmostEqual(59.770833, rows[0].latitude, places=6)
+
+    def test_degrees_decimal_minutes(self):
+        rows, warnings, detected = parse_coordinate_lines(["1 59 46.25 93 27.5"], "dm")
+        self.assertEqual([], warnings)
+        self.assertEqual("dm", detected)
+        self.assertAlmostEqual(59.770833333, rows[0].latitude)
+        self.assertAlmostEqual(93.458333333, rows[0].longitude)
+
+    def test_reverse_axis_order(self):
+        rows, warnings, _ = parse_coordinate_lines(["1 93.45 59.770833"], "dd", "lon_lat")
+        self.assertEqual([], warnings)
+        self.assertAlmostEqual(59.770833, rows[0].latitude, places=6)
+        self.assertAlmostEqual(93.45, rows[0].longitude)
+
+    def test_hemisphere_suffixes(self):
+        rows, warnings, _ = parse_coordinate_lines(["1 12.5 S 44.25 W"], "dd")
+        self.assertEqual([], warnings)
+        self.assertAlmostEqual(-12.5, rows[0].latitude)
+        self.assertAlmostEqual(-44.25, rows[0].longitude)
+
+    def test_missing_point_ids_are_generated(self):
+        rows, warnings, _ = parse_coordinate_lines(["59.1 93.1", "59.2 93.2"], "dd")
+        self.assertEqual([], warnings)
+        self.assertEqual([1, 2], [row.point_id for row in rows])
+
+    def test_preserve_source_order(self):
+        rows, warnings, _ = parse_coordinate_lines(
+            ["2 59.2 93.2", "1 59.1 93.1"], "dd", sort_by_point=False
+        )
+        self.assertEqual([], warnings)
+        self.assertEqual([2, 1], [row.point_id for row in rows])
+
+    def test_decimal_to_dms_round_trip(self):
+        dms = decimal_to_dms(-59.770833333)
+        self.assertAlmostEqual(-59.770833333, dms_to_decimal(*dms))
 
 
 if __name__ == "__main__":

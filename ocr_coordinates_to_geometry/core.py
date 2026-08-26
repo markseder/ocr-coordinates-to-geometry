@@ -8,6 +8,8 @@ from typing import Iterable, Sequence
 
 
 NUMBER_RE = re.compile(r"[-+]?\d+(?:[.,]\d+)?")
+HEMISPHERE_RE = re.compile(r"(?<![A-Z])[NSEW](?![A-Z])", re.IGNORECASE)
+FORMATS = ("auto", "dms", "dm", "dd")
 
 
 @dataclass(frozen=True)
@@ -49,6 +51,22 @@ def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
     return sign * (abs(degrees) + minutes / 60.0 + seconds / 3600.0)
 
 
+def decimal_to_dms(value: float) -> tuple[float, float, float]:
+    sign = -1.0 if value < 0 else 1.0
+    absolute = abs(value)
+    degrees = int(absolute)
+    minute_value = (absolute - degrees) * 60.0
+    minutes = int(minute_value)
+    seconds = round((minute_value - minutes) * 60.0, 8)
+    if seconds >= 60:
+        seconds = 0.0
+        minutes += 1
+    if minutes >= 60:
+        minutes = 0
+        degrees += 1
+    return sign * float(degrees), float(minutes), seconds
+
+
 def normalize_ocr_text(text: str) -> str:
     """Correct common OCR substitutions only in a numeric-table context."""
     translation = str.maketrans({"O": "0", "o": "0", "I": "1", "l": "1", "|": "1"})
@@ -71,6 +89,12 @@ def row_from_values(values: Sequence[float]) -> CoordinateRow:
     return row
 
 
+def row_from_decimal(point_id: int, latitude: float, longitude: float) -> CoordinateRow:
+    lat = decimal_to_dms(latitude)
+    lon = decimal_to_dms(longitude)
+    return row_from_values([point_id, *lat, *lon])
+
+
 def validate_row(row: CoordinateRow) -> None:
     if not 0 <= row.lat_min < 60 or not 0 <= row.lon_min < 60:
         raise ValueError("Minutes must be between 0 and 59.999")
@@ -82,24 +106,107 @@ def validate_row(row: CoordinateRow) -> None:
         raise ValueError("Longitude degrees must be between -180 and 180")
 
 
-def parse_lines(lines: Iterable[str]) -> tuple[list[CoordinateRow], list[str]]:
+def _coordinate_directions(text: str, axis_order: str) -> tuple[str, str]:
+    directions = [match.upper() for match in HEMISPHERE_RE.findall(text.upper())]
+    first = directions[0] if directions else ""
+    second = directions[1] if len(directions) > 1 else ""
+    if axis_order == "lon_lat":
+        return second, first
+    return first, second
+
+
+def detect_coordinate_format(number_count: int) -> tuple[str | None, bool]:
+    """Return format and whether a point identifier is present."""
+    for name, with_id, without_id in (("dms", 7, 6), ("dm", 5, 4), ("dd", 3, 2)):
+        if number_count == with_id:
+            return name, True
+        if number_count == without_id:
+            return name, False
+    return None, False
+
+
+def _row_from_line(
+    text: str,
+    line_number: int,
+    coordinate_format: str,
+    axis_order: str,
+) -> tuple[CoordinateRow, str]:
+    values = numbers_from_text(text)
+    detected, has_point_id = detect_coordinate_format(len(values))
+    selected_format = detected if coordinate_format == "auto" else coordinate_format
+    if selected_format not in FORMATS[1:]:
+        raise ValueError(f"Cannot detect coordinate format from {len(values)} numbers")
+    expected = {"dms": (7, 6), "dm": (5, 4), "dd": (3, 2)}[selected_format]
+    if len(values) not in expected:
+        raise ValueError(
+            f"Format {selected_format.upper()} expects {expected[0]} numbers with a point ID "
+            f"or {expected[1]} without one; found {len(values)}"
+        )
+    has_point_id = len(values) == expected[0]
+    if has_point_id:
+        raw_point = values.pop(0)
+        point_id = int(raw_point)
+        if raw_point != point_id or point_id < 1:
+            raise ValueError("Point number must be a positive integer")
+    else:
+        point_id = line_number
+
+    if selected_format == "dms":
+        first = dms_to_decimal(*values[:3])
+        second = dms_to_decimal(*values[3:6])
+    elif selected_format == "dm":
+        first = dms_to_decimal(values[0], values[1], 0)
+        second = dms_to_decimal(values[2], values[3], 0)
+    else:
+        first, second = values
+
+    latitude, longitude = (second, first) if axis_order == "lon_lat" else (first, second)
+    lat_direction, lon_direction = _coordinate_directions(text, axis_order)
+    if lat_direction:
+        latitude = abs(latitude) * (-1 if lat_direction == "S" else 1)
+    if lon_direction:
+        longitude = abs(longitude) * (-1 if lon_direction == "W" else 1)
+    row = row_from_decimal(point_id, latitude, longitude)
+    return row, selected_format
+
+
+def parse_coordinate_lines(
+    lines: Iterable[str],
+    coordinate_format: str = "auto",
+    axis_order: str = "lat_lon",
+    sort_by_point: bool = True,
+) -> tuple[list[CoordinateRow], list[str], str | None]:
+    if coordinate_format not in FORMATS:
+        raise ValueError(f"Unsupported coordinate format: {coordinate_format}")
+    if axis_order not in {"lat_lon", "lon_lat"}:
+        raise ValueError(f"Unsupported axis order: {axis_order}")
     rows: list[CoordinateRow] = []
     warnings: list[str] = []
+    detected_formats: list[str] = []
     for line_number, text in enumerate(lines, start=1):
         values = numbers_from_text(text)
         if not values:
             continue
-        if len(values) != 7:
-            warnings.append(f"Line {line_number}: found {len(values)} numbers instead of 7")
-            continue
         try:
-            rows.append(row_from_values(values))
+            row, detected = _row_from_line(text, line_number, coordinate_format, axis_order)
+            rows.append(row)
+            detected_formats.append(detected)
         except ValueError as error:
             warnings.append(f"Line {line_number}: {error}")
-    rows.sort(key=lambda item: item.point_id)
+    if sort_by_point:
+        rows.sort(key=lambda item: item.point_id)
     duplicate_ids = sorted({r.point_id for r in rows if sum(x.point_id == r.point_id for x in rows) > 1})
     if duplicate_ids:
         warnings.append("Duplicate point numbers: " + ", ".join(map(str, duplicate_ids)))
+    unique_formats = set(detected_formats)
+    detected_format = next(iter(unique_formats)) if len(unique_formats) == 1 else None
+    if len(unique_formats) > 1:
+        warnings.append("Mixed coordinate formats were detected")
+    return rows, warnings, detected_format
+
+
+def parse_lines(lines: Iterable[str]) -> tuple[list[CoordinateRow], list[str]]:
+    rows, warnings, _ = parse_coordinate_lines(lines, "dms", "lat_lon", True)
     return rows, warnings
 
 

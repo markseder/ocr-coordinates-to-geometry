@@ -12,12 +12,15 @@ from qgis.PyQt.QtCore import Qt, QUrl
 from qgis.PyQt.QtGui import QDesktopServices, QPixmap
 from qgis.PyQt.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QFormLayout,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMessageBox,
     QPushButton,
@@ -42,7 +45,7 @@ from qgis.core import (
 )
 from qgis.PyQt.QtCore import QVariant
 
-from .core import CoordinateRow, closed_vertices, row_from_values
+from .core import CoordinateRow, closed_vertices, parse_coordinate_lines, row_from_values
 from .ocr import OcrUnavailableError, recognize_lines
 from .i18n import translate
 
@@ -73,11 +76,13 @@ class OcrCoordinatesDialog(QDialog):
         buttons = QHBoxLayout()
         self.open_button = QPushButton(self.tr("open_image"))
         self.paste_button = QPushButton(self.tr("paste_clipboard"))
+        self.paste_text_button = QPushButton(self.tr("paste_text"))
         self.recognize_button = QPushButton(self.tr("recognize"))
         self.install_ocr_button = QPushButton(self.tr("install_ocr"))
         self.about_button = QPushButton(self.tr("about"))
         buttons.addWidget(self.open_button)
         buttons.addWidget(self.paste_button)
+        buttons.addWidget(self.paste_text_button)
         buttons.addStretch(1)
         buttons.addWidget(self.install_ocr_button)
         buttons.addWidget(self.about_button)
@@ -90,9 +95,40 @@ class OcrCoordinatesDialog(QDialog):
         self.preview.setStyleSheet("QLabel { border: 1px solid #999; background: #f4f4f4; }")
         root.addWidget(self.preview)
 
-        self.table = QTableWidget(0, 7)
+        input_group = QGroupBox(self.tr("input_group"))
+        input_form = QFormLayout(input_group)
+        self.format_combo = QComboBox()
+        for key, value in (
+            ("format_auto", "auto"),
+            ("format_dms", "dms"),
+            ("format_dm", "dm"),
+            ("format_dd", "dd"),
+        ):
+            self.format_combo.addItem(self.tr(key), value)
+        self.axis_combo = QComboBox()
+        self.axis_combo.addItem(self.tr("axis_lat_lon"), "lat_lon")
+        self.axis_combo.addItem(self.tr("axis_lon_lat"), "lon_lat")
+        self.order_combo = QComboBox()
+        self.order_combo.addItem(self.tr("sort_points"), True)
+        self.order_combo.addItem(self.tr("preserve_order"), False)
+        input_form.addRow(self.tr("coordinate_format"), self.format_combo)
+        input_form.addRow(self.tr("axis_order"), self.axis_combo)
+        input_form.addRow(self.tr("row_order"), self.order_combo)
+        root.addWidget(input_group)
+
+        self.table = QTableWidget(0, 9)
         self.table.setHorizontalHeaderLabels(
-            [self.tr("point"), self.tr("latitude"), "′", "″", self.tr("longitude"), "′", "″"]
+            [
+                self.tr("point"),
+                self.tr("latitude"),
+                "′",
+                "″",
+                self.tr("longitude"),
+                "′",
+                "″",
+                self.tr("latitude_dd"),
+                self.tr("longitude_dd"),
+            ]
         )
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         root.addWidget(self.table, 1)
@@ -129,12 +165,14 @@ class OcrCoordinatesDialog(QDialog):
 
         self.open_button.clicked.connect(self.open_image)
         self.paste_button.clicked.connect(self.paste_image)
+        self.paste_text_button.clicked.connect(self.paste_coordinate_text)
         self.recognize_button.clicked.connect(self.recognize)
         self.install_ocr_button.clicked.connect(self.install_ocr)
         self.about_button.clicked.connect(self.show_about)
         self.add_row_button.clicked.connect(self.add_empty_row)
         self.delete_row_button.clicked.connect(self.delete_selected_rows)
         self.create_button.clicked.connect(self.create_geometry)
+        self.table.cellChanged.connect(self.update_decimal_preview)
 
     def _restore_options(self):
         for name, widget, default in (
@@ -145,6 +183,16 @@ class OcrCoordinatesDialog(QDialog):
         ):
             value = self.settings.value(f"{self.SETTINGS_PREFIX}/{name}", default, type=bool)
             widget.setChecked(value)
+        for key, combo in (
+            ("format", self.format_combo),
+            ("axis_order", self.axis_combo),
+            ("row_order", self.order_combo),
+        ):
+            saved = self.settings.value(f"{self.SETTINGS_PREFIX}/{key}", None)
+            if saved is not None:
+                index = combo.findData(saved if key != "row_order" else str(saved).lower() == "true")
+                if index >= 0:
+                    combo.setCurrentIndex(index)
 
     def _save_options(self):
         self.settings.setValue(f"{self.SETTINGS_PREFIX}/width", self.width())
@@ -156,6 +204,9 @@ class OcrCoordinatesDialog(QDialog):
             ("polygon", self.polygon_check),
         ):
             self.settings.setValue(f"{self.SETTINGS_PREFIX}/{name}", widget.isChecked())
+        self.settings.setValue(f"{self.SETTINGS_PREFIX}/format", self.format_combo.currentData())
+        self.settings.setValue(f"{self.SETTINGS_PREFIX}/axis_order", self.axis_combo.currentData())
+        self.settings.setValue(f"{self.SETTINGS_PREFIX}/row_order", self.order_combo.currentData())
 
     def closeEvent(self, event):
         self._save_options()
@@ -163,11 +214,14 @@ class OcrCoordinatesDialog(QDialog):
 
     def add_empty_row(self):
         row_index = self.table.rowCount()
+        self.table.blockSignals(True)
         self.table.insertRow(row_index)
         next_point = row_index + 1
         self.table.setItem(row_index, 0, QTableWidgetItem(str(next_point)))
         for column in range(1, 7):
             self.table.setItem(row_index, column, QTableWidgetItem("0"))
+        self._set_decimal_cells(row_index, row_from_values([next_point, 0, 0, 0, 0, 0, 0]))
+        self.table.blockSignals(False)
         self.table.setCurrentCell(row_index, 1)
 
     def delete_selected_rows(self):
@@ -197,6 +251,15 @@ class OcrCoordinatesDialog(QDialog):
             return
         self.temp_image_path = path
         self.set_image(path)
+
+    def paste_coordinate_text(self):
+        text, accepted = QInputDialog.getMultiLineText(
+            self,
+            self.tr("paste_text_title"),
+            self.tr("paste_text_prompt"),
+        )
+        if accepted and text.strip():
+            self.process_coordinate_lines(text.splitlines())
 
     def set_image(self, path):
         self.image_path = path
@@ -228,11 +291,23 @@ class OcrCoordinatesDialog(QDialog):
             QMessageBox.critical(self, self.tr("ocr_missing"), str(error))
             self.status.setText(self.tr("ocr_need_install"))
             return
-        from .core import parse_lines
+        self.process_coordinate_lines(lines)
 
-        rows, warnings = parse_lines(lines)
+    def process_coordinate_lines(self, lines):
+        rows, warnings, detected = parse_coordinate_lines(
+            lines,
+            coordinate_format=self.format_combo.currentData(),
+            axis_order=self.axis_combo.currentData(),
+            sort_by_point=bool(self.order_combo.currentData()),
+        )
         self.fill_table(rows)
-        self.status.setText(self.tr("recognized_points", count=len(rows)))
+        if rows:
+            format_name = (detected or self.format_combo.currentData() or "auto").upper()
+            self.status.setText(
+                self.tr("detected_format", format=format_name, count=len(rows))
+            )
+        else:
+            self.status.setText(self.tr("no_coordinates"))
         if warnings:
             QMessageBox.warning(self, self.tr("check_recognition"), "\n".join(warnings[:12]))
 
@@ -285,7 +360,7 @@ class OcrCoordinatesDialog(QDialog):
             python_executable = str(error)
         return "\n".join(
             [
-                "OCR2Geometry: 0.3.0",
+                "OCR2Geometry: 0.4.0",
                 f"QGIS: {Qgis.QGIS_VERSION}",
                 f"Locale: {self.locale}",
                 f"OS: {platform.platform()}",
@@ -301,7 +376,7 @@ class OcrCoordinatesDialog(QDialog):
         dialog.setWindowTitle(self.tr("about_title"))
         dialog.resize(620, 430)
         layout = QVBoxLayout(dialog)
-        title = QLabel("<h2>OCR2Geometry 0.3.0</h2>")
+        title = QLabel("<h2>OCR2Geometry 0.4.0</h2>")
         title.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(title)
         description = QLabel(
@@ -311,6 +386,7 @@ class OcrCoordinatesDialog(QDialog):
         )
         description.setOpenExternalLinks(True)
         layout.addWidget(description)
+        layout.addWidget(QLabel(self.tr("developers")))
         layout.addWidget(QLabel(self.tr("diagnostics")))
         diagnostics = QTextEdit()
         diagnostics.setReadOnly(True)
@@ -347,10 +423,36 @@ class OcrCoordinatesDialog(QDialog):
         dialog.exec()
 
     def fill_table(self, rows):
+        self.table.blockSignals(True)
         self.table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
             for column, text in enumerate(row.as_cells()):
                 self.table.setItem(row_index, column, QTableWidgetItem(text))
+            self._set_decimal_cells(row_index, row)
+        self.table.blockSignals(False)
+
+    def _set_decimal_cells(self, row_index, row):
+        for column, value in ((7, row.latitude), (8, row.longitude)):
+            item = QTableWidgetItem(f"{value:.8f}")
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.table.setItem(row_index, column, item)
+
+    def update_decimal_preview(self, row_index, column):
+        if column >= 7:
+            return
+        try:
+            values = []
+            for current_column in range(7):
+                item = self.table.item(row_index, current_column)
+                if item is None or not item.text().strip():
+                    return
+                values.append(float(item.text().strip().replace(",", ".")))
+            row = row_from_values(values)
+        except ValueError:
+            return
+        self.table.blockSignals(True)
+        self._set_decimal_cells(row_index, row)
+        self.table.blockSignals(False)
 
     def rows_from_table(self) -> list[CoordinateRow]:
         rows = []
@@ -362,7 +464,8 @@ class OcrCoordinatesDialog(QDialog):
                     raise ValueError(self.tr("empty_cell", row=row_index + 1))
                 values.append(float(item.text().strip().replace(",", ".")))
             rows.append(row_from_values(values))
-        rows.sort(key=lambda row: row.point_id)
+        if bool(self.order_combo.currentData()):
+            rows.sort(key=lambda row: row.point_id)
         point_ids = [row.point_id for row in rows]
         if len(point_ids) != len(set(point_ids)):
             raise ValueError(self.tr("duplicate_ids"))
