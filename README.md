@@ -57,6 +57,20 @@ Point | Lat deg | Lat min | Lat sec | Lon deg | Lon min | Lon sec
 
 Compatibility: QGIS 4.0–4.99, Windows 10 and Windows 11.
 
+## Basic workflow
+
+1. Start the plugin from **Vector → OCR2Geometry → OCR2Geometry** or its toolbar icon.
+2. Open or paste a coordinate-table image, then click **Recognize**.
+3. Review the recognized rows and choose the source CRS.
+4. Enter a base name and select the required point, line and polygon outputs.
+5. Click **Add to QGIS project** and verify the geometry against the source document.
+
+![OCR2Geometry result layers in QGIS](docs/screenshots/ocr2geometry-v0.5.0-result-en.png)
+
+The selected name is supplemented with separate **points**, **line** and
+**polygon** suffixes. The selected CRS is assigned to the layers; use standard
+QGIS tools when reprojection is required.
+
 ## Planned development
 
 Version 0.5 adds source CRS selection through the standard QGIS catalog
