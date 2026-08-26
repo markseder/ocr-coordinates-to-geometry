@@ -5,13 +5,14 @@ while it matures toward 1.0.
 
 ## Unreleased
 
-### 0.6.2-beta1
+## 0.6.2 — 2026-08-26
 
 - Added CSV export for the reviewed coordinate table.
 - Added DMS and decimal-degree coordinates to each CSV record.
 - Added minimum OCR confidence per row when available.
 - Used UTF-8 with BOM and semicolon delimiters for Excel and QGIS compatibility.
 - Remembered the last CSV destination folder.
+- Confirmed with QGIS and Excel on Windows.
 
 ## 0.6.1 — 2026-08-26
 
