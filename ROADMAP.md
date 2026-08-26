@@ -44,6 +44,7 @@ tests, documentation and a real QGIS 4 field test.
 - [ ] Before/after audit report.
 - [ ] Undo or remove the most recently created result.
 - [x] Save the reviewed coordinate table to CSV.
+- [x] Spreadsheet-style manual entry with two-way DMS/DD conversion.
 
 ## v0.7 — Documents and batch processing
 
