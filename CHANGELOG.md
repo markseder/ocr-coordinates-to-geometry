@@ -5,7 +5,7 @@ while it matures toward 1.0.
 
 ## Unreleased
 
-### 0.5.0-beta1
+### 0.5.0-beta2
 
 - Added source CRS selection through the standard QGIS CRS catalog.
 - Added a custom base name for output point, line and polygon layers.
