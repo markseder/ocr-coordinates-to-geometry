@@ -2,6 +2,7 @@ import unittest
 
 from ocr_coordinates_to_geometry.core import (
     closed_vertices,
+    coordinate_quality_issues,
     decimal_to_dms,
     dms_to_decimal,
     numbers_from_text,
@@ -96,6 +97,28 @@ class CoreTests(unittest.TestCase):
     def test_decimal_to_dms_round_trip(self):
         dms = decimal_to_dms(-59.770833333)
         self.assertAlmostEqual(-59.770833333, dms_to_decimal(*dms))
+
+    def test_missing_point_numbers_are_reported(self):
+        rows = [
+            row_from_values([1, 59, 1, 0, 93, 1, 0]),
+            row_from_values([3, 59, 2, 0, 93, 2, 0]),
+        ]
+        self.assertIn(("missing_point_ids", (2,)), coordinate_quality_issues(rows))
+
+    def test_coincident_adjacent_vertices_are_reported(self):
+        rows = [
+            row_from_values([1, 59, 1, 0, 93, 1, 0]),
+            row_from_values([2, 59, 1, 0, 93, 1, 0]),
+        ]
+        self.assertIn(("coincident_vertices", (1, 2)), coordinate_quality_issues(rows))
+
+    def test_explicit_closing_vertex_is_reported(self):
+        rows = [
+            row_from_values([1, 59, 1, 0, 93, 1, 0]),
+            row_from_values([2, 59, 2, 0, 93, 2, 0]),
+            row_from_values([3, 59, 1, 0, 93, 1, 0]),
+        ]
+        self.assertIn(("repeated_closing_vertex", (1, 3)), coordinate_quality_issues(rows))
 
 
 if __name__ == "__main__":
