@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest a coordinate format, CRS or workflow
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Real-world workflow
+      description: What document do you receive and what output do you need?
+    validations:
+      required: true
+  - type: textarea
+    id: format
+    attributes:
+      label: Coordinate format and CRS
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Sanitized example
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Frequency of this task
+      options:
+        - Every day
+        - Every week
+        - Every month
+        - Occasionally
