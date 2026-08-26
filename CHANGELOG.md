@@ -5,13 +5,14 @@ while it matures toward 1.0.
 
 ## Unreleased
 
-### 0.6.0-beta1
+## 0.6.0 — 2026-08-26
 
 - Added a pre-creation quality review dialog.
 - Added missing point-number and coincident-vertex checks.
 - Added QGIS geometry validation, including self-intersection reporting.
 - Added CRS-aware line length, perimeter and area measurements.
 - Added an explicit choice to create layers or return to editing.
+- Confirmed in QGIS 4.0 on Windows.
 
 ## 0.5.0 — 2026-08-26
 
