@@ -21,7 +21,6 @@ from qgis.PyQt.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QMessageBox,
     QPushButton,
@@ -61,6 +60,7 @@ from .core import (
 )
 from .ocr import OcrLine, OcrUnavailableError, recognize_lines
 from .i18n import translate
+from .manual_entry import ManualCoordinateDialog
 
 
 class OcrCoordinatesDialog(QDialog):
@@ -297,13 +297,16 @@ class OcrCoordinatesDialog(QDialog):
         self.set_image(path)
 
     def paste_coordinate_text(self):
-        text, accepted = QInputDialog.getMultiLineText(
-            self,
-            self.tr("paste_text_title"),
-            self.tr("paste_text_prompt"),
-        )
-        if accepted and text.strip():
-            self.process_coordinate_lines(text.splitlines())
+        try:
+            current_rows = self.rows_from_table(apply_sort=False)
+        except ValueError:
+            current_rows = []
+        dialog = ManualCoordinateDialog(self.locale, current_rows, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.fill_table(dialog.accepted_rows)
+            self.status.setText(
+                self.tr("manual_rows_loaded", count=len(dialog.accepted_rows))
+            )
 
     def set_image(self, path):
         self.image_path = path
@@ -424,7 +427,7 @@ class OcrCoordinatesDialog(QDialog):
             python_executable = str(error)
         return "\n".join(
             [
-                "OCR2Geometry: 0.6.2",
+                "OCR2Geometry: 0.6.3-beta1",
                 f"QGIS: {Qgis.QGIS_VERSION}",
                 f"Locale: {self.locale}",
                 f"OS: {platform.platform()}",
@@ -440,7 +443,7 @@ class OcrCoordinatesDialog(QDialog):
         dialog.setWindowTitle(self.tr("about_title"))
         dialog.resize(620, 430)
         layout = QVBoxLayout(dialog)
-        title = QLabel("<h2>OCR2Geometry 0.6.2</h2>")
+        title = QLabel("<h2>OCR2Geometry 0.6.3-beta1</h2>")
         title.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(title)
         description = QLabel(
