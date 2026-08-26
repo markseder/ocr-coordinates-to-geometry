@@ -30,7 +30,7 @@ tests, documentation and a real QGIS 4 field test.
 - [x] Custom base name for created layers.
 - [x] Persist the selected CRS and layer name.
 - [x] Leave coordinate transformation to standard QGIS tools.
-- [ ] Confirm v0.5.0 in QGIS 4.0 on Windows 10/11.
+- [x] Confirm v0.5.0 in QGIS 4.0 on Windows 10/11.
 
 ## v0.6 — Quality control
 
