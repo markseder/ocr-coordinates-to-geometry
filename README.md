@@ -59,20 +59,19 @@ Compatibility: QGIS 4.0–4.99, Windows 10 and Windows 11.
 
 ## Planned development
 
-The next releases will add coordinate-order reversal, decimal formats,
-N/S/E/W hemispheres, CRS selection, GSK-2011, SK-42 / Pulkovo 1942, SK-95,
-Gauss–Krüger workflows, quality control, PDF/batch processing and more UI
-languages.
+The current beta adds source CRS selection through the standard QGIS catalog
+and custom output-layer names. Coordinate transformations remain a standard
+QGIS responsibility. Future releases focus on quality control, PDF/batch
+processing and more UI languages.
 
 See the complete [development roadmap](ROADMAP.md). Planned items are not yet
 available in the current release.
 
 ## Accuracy and CRS warning
 
-Always review recognized values before using the geometry. Datum transformations
-must use parameters appropriate to the source document and region. The plugin
-will never silently guess a local transformation where several valid choices
-exist.
+Always review recognized values before using the geometry and select the CRS
+that describes the source coordinates. Assigning a CRS does not transform the
+numbers. Use QGIS export/reprojection tools for coordinate transformations.
 
 ## Development
 
