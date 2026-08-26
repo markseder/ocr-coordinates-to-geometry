@@ -35,9 +35,12 @@ tests, documentation and a real QGIS 4 field test.
 ## v0.6 — Quality control
 
 - [ ] Per-cell OCR confidence and warning highlighting.
-- [ ] Duplicate, missing and outlier vertex checks.
-- [ ] Self-intersection and invalid-ring checks.
-- [ ] Area/perimeter calculation and comparison with document values.
+- [x] Duplicate, missing and coincident vertex checks.
+- [x] Self-intersection and invalid-ring checks.
+- [x] CRS-aware length, area and perimeter calculation.
+- [x] Pre-creation quality review with cancel/edit path.
+- [ ] Outlier vertex checks.
+- [ ] Area comparison with document values.
 - [ ] Before/after audit report.
 - [ ] Undo or remove the most recently created result.
 
