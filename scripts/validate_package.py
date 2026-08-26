@@ -21,6 +21,7 @@ REQUIRED = {
     "dependencies.py",
     "i18n.py",
     "icon.svg",
+    "manual_entry.py",
 }
 FORBIDDEN_PARTS = {"__pycache__", ".git", ".github"}
 
