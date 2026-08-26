@@ -44,11 +44,18 @@ from qgis.core import (
     Qgis,
     QgsVectorLayer,
     QgsCoordinateReferenceSystem,
+    QgsDistanceArea,
 )
 from qgis.gui import QgsProjectionSelectionWidget
 from qgis.PyQt.QtCore import QVariant
 
-from .core import CoordinateRow, closed_vertices, parse_coordinate_lines, row_from_values
+from .core import (
+    CoordinateRow,
+    closed_vertices,
+    coordinate_quality_issues,
+    parse_coordinate_lines,
+    row_from_values,
+)
 from .ocr import OcrUnavailableError, recognize_lines
 from .i18n import translate
 
@@ -383,7 +390,7 @@ class OcrCoordinatesDialog(QDialog):
             python_executable = str(error)
         return "\n".join(
             [
-                "OCR2Geometry: 0.5.0",
+                "OCR2Geometry: 0.6.0-beta1",
                 f"QGIS: {Qgis.QGIS_VERSION}",
                 f"Locale: {self.locale}",
                 f"OS: {platform.platform()}",
@@ -399,7 +406,7 @@ class OcrCoordinatesDialog(QDialog):
         dialog.setWindowTitle(self.tr("about_title"))
         dialog.resize(620, 430)
         layout = QVBoxLayout(dialog)
-        title = QLabel("<h2>OCR2Geometry 0.5.0</h2>")
+        title = QLabel("<h2>OCR2Geometry 0.6.0-beta1</h2>")
         title.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(title)
         description = QLabel(
@@ -494,6 +501,74 @@ class OcrCoordinatesDialog(QDialog):
             raise ValueError(self.tr("duplicate_ids"))
         return rows
 
+    @staticmethod
+    def _format_distance(metres):
+        return f"{metres / 1000:.3f} km" if metres >= 1000 else f"{metres:.2f} m"
+
+    @staticmethod
+    def _format_area(square_metres):
+        return (
+            f"{square_metres / 1_000_000:.3f} km²"
+            if square_metres >= 1_000_000
+            else f"{square_metres:.2f} m²"
+        )
+
+    def review_quality(self, rows, line_geometry, polygon_geometry, source_crs):
+        warnings = []
+        for issue, point_ids in coordinate_quality_issues(rows):
+            warnings.append(
+                self.tr(issue, points=", ".join(str(value) for value in point_ids))
+            )
+
+        if polygon_geometry is not None:
+            for error in polygon_geometry.validateGeometry():
+                warnings.append(self.tr("geometry_problem", problem=error.what()))
+
+        project = QgsProject.instance()
+        measurements = QgsDistanceArea()
+        measurements.setSourceCrs(source_crs, project.transformContext())
+        measurements.setEllipsoid(project.ellipsoid() or "WGS84")
+        length_metres = measurements.convertLengthMeasurement(
+            measurements.measureLength(line_geometry), Qgis.DistanceUnit.Meters
+        )
+
+        lines = [
+            self.tr("review_points", count=len(rows)),
+            self.tr("review_crs", crs=source_crs.authid() or source_crs.description()),
+            self.tr("review_line_length", value=self._format_distance(length_metres)),
+        ]
+        if polygon_geometry is not None:
+            perimeter_metres = measurements.convertLengthMeasurement(
+                measurements.measurePerimeter(polygon_geometry), Qgis.DistanceUnit.Meters
+            )
+            area_metres = measurements.convertAreaMeasurement(
+                measurements.measureArea(polygon_geometry), Qgis.AreaUnit.SquareMeters
+            )
+            lines.extend(
+                [
+                    self.tr("review_perimeter", value=self._format_distance(perimeter_metres)),
+                    self.tr("review_area", value=self._format_area(area_metres)),
+                ]
+            )
+
+        if warnings:
+            lines.extend(["", self.tr("review_warnings"), *[f"• {text}" for text in warnings]])
+        else:
+            lines.extend(["", self.tr("review_valid")])
+
+        message = QMessageBox(self)
+        message.setWindowTitle(self.tr("review_title"))
+        message.setIcon(
+            QMessageBox.Icon.Warning if warnings else QMessageBox.Icon.Information
+        )
+        message.setText("\n".join(lines))
+        create_button = message.addButton(
+            self.tr("create_layers"), QMessageBox.ButtonRole.AcceptRole
+        )
+        message.addButton(self.tr("cancel"), QMessageBox.ButtonRole.RejectRole)
+        message.exec()
+        return message.clickedButton() is create_button
+
     def create_geometry(self):
         try:
             rows = self.rows_from_table()
@@ -510,6 +585,21 @@ class OcrCoordinatesDialog(QDialog):
             return
         base_name = self.layer_name_edit.text().strip() or "OCR2Geometry"
         self._save_options()
+        vertices = closed_vertices(rows, self.close_check.isChecked())
+        line_geometry = QgsGeometry.fromPolylineXY(
+            [QgsPointXY(x, y) for x, y in vertices]
+        )
+        polygon_geometry = None
+        if len(rows) >= 3 and (self.close_check.isChecked() or self.polygon_check.isChecked()):
+            ring = closed_vertices(rows, True)
+            polygon_geometry = QgsGeometry.fromPolygonXY(
+                [[QgsPointXY(x, y) for x, y in ring]]
+            )
+        if not self.review_quality(
+            rows, line_geometry, polygon_geometry, source_crs
+        ):
+            self.status.setText(self.tr("creation_cancelled"))
+            return
         if self.points_check.isChecked():
             point_layer = QgsVectorLayer("Point", self.tr("named_points", name=base_name), "memory")
             point_layer.setCrs(source_crs)
@@ -537,11 +627,10 @@ class OcrCoordinatesDialog(QDialog):
                 point_layer.setLabelsEnabled(True)
             project.addMapLayer(point_layer)
 
-        vertices = closed_vertices(rows, self.close_check.isChecked())
         line_layer = QgsVectorLayer("LineString", self.tr("named_line", name=base_name), "memory")
         line_layer.setCrs(source_crs)
         line_feature = QgsFeature()
-        line_feature.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(x, y) for x, y in vertices]))
+        line_feature.setGeometry(line_geometry)
         line_layer.dataProvider().addFeature(line_feature)
         line_layer.updateExtents()
         project.addMapLayer(line_layer)
@@ -550,11 +639,10 @@ class OcrCoordinatesDialog(QDialog):
             if len(rows) < 3:
                 QMessageBox.warning(self, self.tr("polygon"), self.tr("polygon_minimum"))
             else:
-                ring = closed_vertices(rows, True)
                 polygon_layer = QgsVectorLayer("Polygon", self.tr("named_polygon", name=base_name), "memory")
                 polygon_layer.setCrs(source_crs)
                 polygon_feature = QgsFeature()
-                polygon_feature.setGeometry(QgsGeometry.fromPolygonXY([[QgsPointXY(x, y) for x, y in ring]]))
+                polygon_feature.setGeometry(polygon_geometry)
                 polygon_layer.dataProvider().addFeature(polygon_feature)
                 polygon_layer.updateExtents()
                 project.addMapLayer(polygon_layer)
