@@ -63,5 +63,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
         run: |
-          gh release create "$TAG"             dist/ocr_coordinates_to_geometry.zip             --target "$GITHUB_SHA"             --title "OCR2Geometry v$VERSION"             --generate-notes             --latest
+          ARGS=(
+            "$TAG"
+            "dist/ocr_coordinates_to_geometry.zip"
+            --target "$GITHUB_SHA"
+            --title "OCR2Geometry v$VERSION"
+            --generate-notes
+          )
+          if [[ "$VERSION" == *-* ]]; then
+            ARGS+=(--prerelease)
+          else
+            ARGS+=(--latest)
+          fi
+          gh release create "${ARGS[@]}"
