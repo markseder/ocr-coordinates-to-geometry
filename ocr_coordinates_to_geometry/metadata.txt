@@ -1,0 +1,17 @@
+[general]
+name=OCR Coordinates to Geometry
+description=Create numbered corner points, lines and polygons from screenshots of DMS coordinate tables.
+version=0.1.0
+qgisMinimumVersion=4.0
+qgisMaximumVersion=4.99
+author=Markseder
+email=
+about=Recognizes seven-column coordinate tables (point, latitude DMS, longitude DMS), lets the user correct the result, and creates geometry in EPSG:4326. The Close line option repeats the first vertex at the end.
+category=Vector
+tags=ocr,coordinates,dms,points,line,polygon,vector
+homepage=https://github.com/markseder/ocr-coordinates-to-geometry
+repository=https://github.com/markseder/ocr-coordinates-to-geometry
+tracker=https://github.com/markseder/ocr-coordinates-to-geometry/issues
+experimental=True
+deprecated=False
+hasProcessingProvider=False
