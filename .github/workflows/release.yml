@@ -1,0 +1,67 @@
+name: Test and publish release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Build plugin package
+        run: python scripts/build_zip.py
+
+      - name: Validate plugin package
+        run: python scripts/validate_package.py
+
+      - name: Read plugin version
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(python - <<'PY'
+          import configparser
+          parser = configparser.ConfigParser()
+          parser.read("ocr_coordinates_to_geometry/metadata.txt", encoding="utf-8")
+          print(parser["general"]["version"].strip())
+          PY
+          )"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether release tag exists
+        id: tag
+        shell: bash
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub release
+        if: steps.tag.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$TAG"             dist/ocr_coordinates_to_geometry.zip             --target "$GITHUB_SHA"             --title "OCR2Geometry v$VERSION"             --generate-notes             --latest
