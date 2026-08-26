@@ -17,6 +17,13 @@ class OcrToken:
     text: str
     x: float
     y: float
+    confidence: float | None = None
+
+
+@dataclass(frozen=True)
+class OcrLine:
+    text: str
+    confidences: tuple[float | None, ...] = ()
 
 
 def _load_engine():
@@ -45,7 +52,10 @@ def _items_from_result(result: Any) -> list[Any]:
     if result is None:
         return []
     if hasattr(result, "txts") and hasattr(result, "boxes"):
-        return list(zip(result.boxes, result.txts))
+        scores = getattr(result, "scores", None)
+        if scores is None:
+            scores = [None] * len(result.txts)
+        return list(zip(result.boxes, result.txts, scores))
     if isinstance(result, tuple):
         result = result[0]
     return list(result or [])
@@ -61,7 +71,7 @@ def _group_adjacent(indices):
     return [int(np.mean(group)) for group in groups if len(group)]
 
 
-def _recognize_grid_cells(engine, image_path: str | Path) -> list[str]:
+def _recognize_grid_cells(engine, image_path: str | Path) -> list[OcrLine]:
     """Recognize a ruled seven-column table one cell at a time.
 
     Tiny scans are much more reliable this way: table lines establish the
@@ -98,6 +108,7 @@ def _recognize_grid_cells(engine, image_path: str | Path) -> list[str]:
     lines = []
     for row_index in range(len(ys) - 1):
         values = []
+        confidences = []
         for column in range(column_count):
             top, bottom = ys[row_index] + 2, ys[row_index + 1] - 2
             left, right = xs[column] + 2, xs[column + 1] - 2
@@ -109,13 +120,15 @@ def _recognize_grid_cells(engine, image_path: str | Path) -> list[str]:
             crop = cv2.copyMakeBorder(crop, 15, 15, 15, 15, cv2.BORDER_CONSTANT, value=255)
             result = engine(crop, use_det=False, use_cls=False, use_rec=True)
             texts = getattr(result, "txts", ()) or ()
+            scores = getattr(result, "scores", ()) or ()
             values.append(str(texts[0]).strip() if texts else "")
+            confidences.append(float(scores[0]) if scores else None)
         if all(values):
-            lines.append(" ".join(values))
+            lines.append(OcrLine(" ".join(values), tuple(confidences)))
     return lines
 
 
-def recognize_lines(image_path: str | Path) -> list[str]:
+def recognize_lines(image_path: str | Path) -> list[OcrLine]:
     engine = _load_engine()
     grid_lines = _recognize_grid_cells(engine, image_path)
     if grid_lines:
@@ -125,9 +138,10 @@ def recognize_lines(image_path: str | Path) -> list[str]:
     for item in _items_from_result(raw):
         try:
             box, text = item[0], str(item[1])
+            confidence = float(item[2]) if len(item) > 2 and item[2] is not None else None
             xs = [float(point[0]) for point in box]
             ys = [float(point[1]) for point in box]
-            tokens.append(OcrToken(text, sum(xs) / len(xs), sum(ys) / len(ys)))
+            tokens.append(OcrToken(text, sum(xs) / len(xs), sum(ys) / len(ys), confidence))
         except (TypeError, ValueError, IndexError):
             continue
     if not tokens:
@@ -151,5 +165,11 @@ def recognize_lines(image_path: str | Path) -> list[str]:
         groups[group_index].append(token)
     lines = []
     for index in sorted(groups, key=lambda idx: centers[idx]):
-        lines.append(" ".join(token.text for token in sorted(groups[index], key=lambda token: token.x)))
+        ordered = sorted(groups[index], key=lambda token: token.x)
+        lines.append(
+            OcrLine(
+                " ".join(token.text for token in ordered),
+                tuple(token.confidence for token in ordered),
+            )
+        )
     return lines
