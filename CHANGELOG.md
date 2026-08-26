@@ -5,6 +5,13 @@ while it matures toward 1.0.
 
 ## Unreleased
 
+### 0.5.0-beta1
+
+- Added source CRS selection through the standard QGIS CRS catalog.
+- Added a custom base name for output point, line and polygon layers.
+- Persisted the selected source CRS and layer name.
+- Kept coordinate transformation in standard QGIS tools.
+
 ## 0.4.0 — 2026-08-26
 
 - Added automatic/manual DMS, DM and DD coordinate-format selection.
