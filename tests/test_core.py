@@ -5,8 +5,11 @@ from ocr_coordinates_to_geometry.core import (
     coordinate_quality_issues,
     coordinate_csv_row,
     CSV_HEADERS,
+    is_header_row,
+    split_clipboard_table,
     decimal_to_dms,
     dms_to_decimal,
+    format_number,
     numbers_from_text,
     parse_lines,
     parse_coordinate_lines,
@@ -100,6 +103,11 @@ class CoreTests(unittest.TestCase):
         dms = decimal_to_dms(-59.770833333)
         self.assertAlmostEqual(-59.770833333, dms_to_decimal(*dms))
 
+    def test_negative_fractional_degree_round_trip(self):
+        dms = decimal_to_dms(-0.5)
+        self.assertEqual("-0", format_number(dms[0]))
+        self.assertAlmostEqual(-0.5, dms_to_decimal(*dms))
+
     def test_missing_point_numbers_are_reported(self):
         rows = [
             row_from_values([1, 59, 1, 0, 93, 1, 0]),
@@ -133,6 +141,16 @@ class CoreTests(unittest.TestCase):
     def test_csv_row_leaves_manual_confidence_empty(self):
         row = row_from_values([1, 59, 46, 15, 93, 27, 0])
         self.assertEqual("", coordinate_csv_row(row)[9])
+
+    def test_excel_clipboard_table_is_split_by_tabs(self):
+        rows = split_clipboard_table("1\t59\t45\t0\t93\t30\t0\n2\t60\t0\t0\t94\t0\t0")
+        self.assertEqual(2, len(rows))
+        self.assertEqual("93", rows[0][4])
+
+    def test_semicolon_csv_with_decimal_commas_is_preserved(self):
+        rows = split_clipboard_table("point_id;latitude_dd;longitude_dd\n1;59,75;93,5")
+        self.assertTrue(is_header_row(rows[0]))
+        self.assertEqual(["1", "59,75", "93,5"], rows[1])
 
 
 if __name__ == "__main__":
