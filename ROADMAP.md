@@ -43,6 +43,7 @@ tests, documentation and a real QGIS 4 field test.
 - [ ] Area comparison with document values.
 - [ ] Before/after audit report.
 - [ ] Undo or remove the most recently created result.
+- [x] Save the reviewed coordinate table to CSV.
 
 ## v0.7 — Documents and batch processing
 
