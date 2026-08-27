@@ -1,5 +1,8 @@
 name: tests
 
+permissions:
+  contents: write
+
 on:
   push:
   pull_request:
@@ -19,3 +22,38 @@ jobs:
         with:
           name: ocr-coordinates-to-geometry
           path: dist/ocr_coordinates_to_geometry.zip
+
+  publish-release:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: core-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read plugin version
+        run: |
+          VERSION="$(sed -n 's/^version=//p' ocr_coordinates_to_geometry/metadata.txt | tr -d '\r')"
+          test -n "$VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+      - name: Build and validate release ZIP
+        run: |
+          python scripts/build_zip.py
+          python scripts/validate_package.py
+      - name: Publish version if it does not exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; nothing to publish."
+            exit 0
+          fi
+          RELEASE_KIND="--latest"
+          case "$VERSION" in
+            *-*) RELEASE_KIND="--prerelease" ;;
+          esac
+          gh release create "$TAG" \
+            dist/ocr_coordinates_to_geometry.zip \
+            --target "$GITHUB_SHA" \
+            --title "OCR2Geometry $TAG" \
+            --generate-notes \
+            "$RELEASE_KIND"
