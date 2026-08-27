@@ -66,8 +66,8 @@ tests, documentation and a real QGIS 4 field test.
 - [x] Automated core and package tests.
 - [x] Reproducible package and dependency manifest.
 - [x] User manual and troubleshooting guide.
-- [ ] Clean-profile QGIS test of `v1.0.0-beta1`.
-- [ ] Publish stable `v1.0.0` with `experimental=False`.
+- [x] Clean-profile QGIS test of `v1.0.0-beta1`.
+- [x] Publish stable `v1.0.0` with `experimental=False`.
 
 ## Non-negotiable principles
 
