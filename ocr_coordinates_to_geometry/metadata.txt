@@ -2,7 +2,7 @@
 name=OCR2Geometry
 description=Create numbered points, lines and polygons from screenshots or pasted coordinate text.
 description[ru]=Создание точек, линий и полигонов из скриншотов или вставленного текста координат.
-version=1.0.0
+version=1.0.1
 qgisMinimumVersion=4.0
 qgisMaximumVersion=4.99
 author=Markseder, Matveev Pavel
@@ -17,6 +17,6 @@ repository=https://github.com/markseder/ocr-coordinates-to-geometry
 tracker=https://github.com/markseder/ocr-coordinates-to-geometry/issues
 experimental=False
 icon=icon.svg
-changelog=1.0.0: First stable release, verified in QGIS 4 with OCR, manual entry, CRS assignment, geometry validation and CSV export.
+changelog=1.0.1: Documented the reviewed fixed-argument OCR installer subprocess for QGIS security scanning.
 deprecated=False
 hasProcessingProvider=False
