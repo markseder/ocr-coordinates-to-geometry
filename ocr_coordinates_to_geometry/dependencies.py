@@ -81,7 +81,9 @@ def install_rapidocr(progress_callback=None, cancelled_callback=None) -> tuple[b
         *PACKAGES,
     ]
     creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    process = subprocess.Popen(
+    # The executable is the QGIS-bundled Python and every argument is built
+    # locally from fixed package requirements; no user input reaches command.
+    process = subprocess.Popen(  # nosec B603
         command,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
