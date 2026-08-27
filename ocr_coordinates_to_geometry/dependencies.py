@@ -10,7 +10,11 @@ import sys
 from qgis.core import QgsApplication
 
 
-PACKAGES = ("rapidocr>=3.8.4,<4", "onnxruntime>=1.18,<2")
+PACKAGES = tuple(
+    line.strip()
+    for line in Path(__file__).with_name("requirements-ocr.txt").read_text(encoding="utf-8").splitlines()
+    if line.strip() and not line.lstrip().startswith("#")
+)
 
 
 def vendor_directory() -> Path:
