@@ -22,6 +22,9 @@ REQUIRED = {
     "i18n.py",
     "icon.svg",
     "manual_entry.py",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "requirements-ocr.txt",
 }
 FORBIDDEN_PARTS = {"__pycache__", ".git", ".github"}
 
@@ -58,6 +61,7 @@ def validate(path: Path = ZIP_PATH) -> list[str]:
                 "repository",
                 "tracker",
                 "icon",
+                "license",
             ):
                 if not general.get(key, "").strip():
                     errors.append(f"Missing metadata key: {key}")
