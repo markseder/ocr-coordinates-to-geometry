@@ -12,16 +12,16 @@ tests, documentation and a real QGIS 4 field test.
 - [x] About, diagnostics and support links.
 - [x] Persistent user settings.
 - [x] QGIS official repository packaging and validation.
-- [ ] Sanitized sample-image test collection.
+- [x] Sanitized sample image for documentation and testing.
 
 ## v0.4 — Coordinate formats
 
-- [ ] DMS, decimal degrees and degrees/decimal-minutes.
-- [ ] Automatic format detection with explicit override.
-- [ ] Latitude/longitude and X/Y order reversal.
-- [ ] N/S/E/W hemisphere suffixes and signed coordinates.
-- [ ] Paste recognized/plain coordinate text without an image.
-- [ ] Row-order preservation or sorting by point identifier.
+- [x] DMS, decimal degrees and degrees/decimal-minutes.
+- [x] Automatic format detection with explicit override.
+- [x] Latitude/longitude and X/Y order reversal.
+- [x] N/S/E/W hemisphere suffixes and signed coordinates.
+- [x] Paste recognized/plain coordinate text without an image.
+- [x] Row-order preservation or sorting by point identifier.
 
 ## v0.5 — Source CRS and layer naming
 
@@ -46,15 +46,13 @@ tests, documentation and a real QGIS 4 field test.
 - [x] Save the reviewed coordinate table to CSV.
 - [x] Spreadsheet-style manual entry with two-way DMS/DD conversion.
 
-## v0.7 — Documents and batch processing
+## Deferred ideas — only after demonstrated user demand
 
 - [ ] PDF page import and table-region selection.
 - [ ] Multiple tables in one document.
 - [ ] Batch image/folder processing.
 - [ ] Reusable templates for recurring document layouts.
 - [ ] GeoPackage, SHP, DXF, KML and GeoJSON export.
-
-## v0.8 — Extensibility and integration
 
 - [ ] Processing Toolbox algorithm.
 - [ ] Template/recognizer plugin interface.
@@ -64,11 +62,12 @@ tests, documentation and a real QGIS 4 field test.
 
 ## v1.0 — Stable release
 
-- [ ] Stable public API and documented data model.
-- [ ] Automated compatibility tests for supported QGIS versions.
-- [ ] Signed/reproducible packages and dependency manifest.
-- [ ] Complete user manual and troubleshooting guide.
-- [ ] Migration policy and long-term support plan.
+- [x] Feature freeze and documented user workflow.
+- [x] Automated core and package tests.
+- [x] Reproducible package and dependency manifest.
+- [x] User manual and troubleshooting guide.
+- [ ] Clean-profile QGIS test of `v1.0.0-beta1`.
+- [ ] Publish stable `v1.0.0` with `experimental=False`.
 
 ## Non-negotiable principles
 
