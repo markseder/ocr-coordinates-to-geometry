@@ -5,6 +5,12 @@ while it matures toward 1.0.
 
 ## Unreleased
 
+## 1.0.1 — 2026-08-27
+
+- Documented the fixed-argument OCR installer subprocess with a targeted
+  Bandit `B603` suppression after security review.
+- No plugin behavior or dependency versions changed.
+
 ## 1.0.0 — 2026-08-27
 
 - Promoted the tested `1.0.0-beta1` feature set to the first stable release.
