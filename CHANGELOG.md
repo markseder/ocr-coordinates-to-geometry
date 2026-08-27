@@ -5,7 +5,7 @@ while it matures toward 1.0.
 
 ## Unreleased
 
-### 0.6.3-beta2
+### 0.6.3-beta3
 
 - Replaced the plain-text coordinate dialog with a nine-column spreadsheet editor.
 - Added Ctrl+C/Ctrl+V support for Excel-style table ranges.
@@ -14,6 +14,9 @@ while it matures toward 1.0.
 - Added decimal-comma and header-row support.
 - Fixed negative coordinates between 0 and -1 degrees.
 - Fixed eight-column DMS+DD paste without point IDs being shifted into the Point column.
+- Added a persistent 0–6 decimal precision setting for seconds (default: 3).
+- Removed scientific notation from displayed seconds.
+- Added correct carry normalization when rounded seconds reach 60.
 
 ## 0.6.2 — 2026-08-26
 
