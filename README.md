@@ -47,6 +47,7 @@ button.
 - Green, yellow and red OCR-confidence highlighting with percentage tooltips.
 - CSV export of the reviewed table with DMS, decimal coordinates and OCR confidence.
 - Spreadsheet-style manual entry with Excel paste and live two-way DMS/DD conversion.
+- Configurable second precision from 0 to 6 decimal places (3 by default).
 
 Supported input layout:
 
