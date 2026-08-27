@@ -29,6 +29,7 @@ from qgis.PyQt.QtWidgets import (
     QHeaderView,
     QProgressDialog,
     QLineEdit,
+    QSpinBox,
     QApplication,
     QVBoxLayout,
     QTextEdit,
@@ -127,10 +128,14 @@ class OcrCoordinatesDialog(QDialog):
         self.order_combo.addItem(self.tr("preserve_order"), False)
         self.crs_widget = QgsProjectionSelectionWidget()
         self.crs_widget.setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
+        self.seconds_precision_spin = QSpinBox()
+        self.seconds_precision_spin.setRange(0, 6)
+        self.seconds_precision_spin.setValue(3)
         input_form.addRow(self.tr("coordinate_format"), self.format_combo)
         input_form.addRow(self.tr("axis_order"), self.axis_combo)
         input_form.addRow(self.tr("row_order"), self.order_combo)
         input_form.addRow(self.tr("source_crs"), self.crs_widget)
+        input_form.addRow(self.tr("seconds_precision"), self.seconds_precision_spin)
         root.addWidget(input_group)
 
         self.table = QTableWidget(0, 9)
@@ -201,6 +206,7 @@ class OcrCoordinatesDialog(QDialog):
         self.save_csv_button.clicked.connect(self.save_csv)
         self.create_button.clicked.connect(self.create_geometry)
         self.table.cellChanged.connect(self.update_decimal_preview)
+        self.seconds_precision_spin.valueChanged.connect(self.refresh_seconds_precision)
 
     def _restore_options(self):
         for name, widget, default in (
@@ -228,6 +234,9 @@ class OcrCoordinatesDialog(QDialog):
         crs = QgsCoordinateReferenceSystem(str(saved_crs))
         if crs.isValid():
             self.crs_widget.setCrs(crs)
+        self.seconds_precision_spin.setValue(
+            int(self.settings.value(f"{self.SETTINGS_PREFIX}/seconds_precision", 3))
+        )
 
     def _save_options(self):
         self.settings.setValue(f"{self.SETTINGS_PREFIX}/width", self.width())
@@ -247,6 +256,10 @@ class OcrCoordinatesDialog(QDialog):
         )
         self.settings.setValue(
             f"{self.SETTINGS_PREFIX}/source_crs", self.crs_widget.crs().authid()
+        )
+        self.settings.setValue(
+            f"{self.SETTINGS_PREFIX}/seconds_precision",
+            self.seconds_precision_spin.value(),
         )
 
     def closeEvent(self, event):
@@ -301,7 +314,12 @@ class OcrCoordinatesDialog(QDialog):
             current_rows = self.rows_from_table(apply_sort=False)
         except ValueError:
             current_rows = []
-        dialog = ManualCoordinateDialog(self.locale, current_rows, self)
+        dialog = ManualCoordinateDialog(
+            self.locale,
+            current_rows,
+            self.seconds_precision_spin.value(),
+            self,
+        )
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.fill_table(dialog.accepted_rows)
             self.status.setText(
@@ -427,7 +445,7 @@ class OcrCoordinatesDialog(QDialog):
             python_executable = str(error)
         return "\n".join(
             [
-                "OCR2Geometry: 0.6.3-beta2",
+                "OCR2Geometry: 0.6.3-beta3",
                 f"QGIS: {Qgis.QGIS_VERSION}",
                 f"Locale: {self.locale}",
                 f"OS: {platform.platform()}",
@@ -443,7 +461,7 @@ class OcrCoordinatesDialog(QDialog):
         dialog.setWindowTitle(self.tr("about_title"))
         dialog.resize(620, 430)
         layout = QVBoxLayout(dialog)
-        title = QLabel("<h2>OCR2Geometry 0.6.3-beta2</h2>")
+        title = QLabel("<h2>OCR2Geometry 0.6.3-beta3</h2>")
         title.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(title)
         description = QLabel(
@@ -494,11 +512,22 @@ class OcrCoordinatesDialog(QDialog):
         self.table.blockSignals(True)
         self.table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
-            for column, text in enumerate(row.as_cells()):
+            for column, text in enumerate(
+                row.as_cells(self.seconds_precision_spin.value())
+            ):
                 self.table.setItem(row_index, column, QTableWidgetItem(text))
             self._set_decimal_cells(row_index, row)
             self._apply_confidence_style(row_index)
         self.table.blockSignals(False)
+
+    def refresh_seconds_precision(self):
+        if self.table.rowCount() == 0:
+            return
+        try:
+            rows = self.rows_from_table(apply_sort=False)
+        except ValueError:
+            return
+        self.fill_table(rows, list(self.row_confidences))
 
     def _apply_confidence_style(self, row_index):
         if row_index >= len(self.row_confidences):
@@ -601,7 +630,11 @@ class OcrCoordinatesDialog(QDialog):
                         if row_index < len(self.row_confidences)
                         else ()
                     )
-                    writer.writerow(coordinate_csv_row(row, confidences))
+                    writer.writerow(
+                        coordinate_csv_row(
+                            row, confidences, self.seconds_precision_spin.value()
+                        )
+                    )
         except OSError as error:
             QMessageBox.critical(
                 self, self.tr("csv_save_error"), self.tr("csv_save_failed", error=error)
