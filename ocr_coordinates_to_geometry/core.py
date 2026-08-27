@@ -43,6 +43,19 @@ def is_header_row(row: Sequence[str]) -> bool:
         return True
 
 
+def clipboard_column_layout(width: int) -> tuple[list[int], bool, bool]:
+    """Return target columns, auto-number flag and DD-preference for pasted rows."""
+    if width == 2:
+        return [7, 8], True, True
+    if width == 3:
+        return [0, 7, 8], False, True
+    if width == 6:
+        return list(range(1, 7)), True, False
+    if width == 8:
+        return list(range(1, 9)), True, False
+    return list(range(min(width, 9))), False, False
+
+
 @dataclass(frozen=True)
 class CoordinateRow:
     point_id: int
