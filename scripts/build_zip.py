@@ -13,7 +13,11 @@ def build():
     with zipfile.ZipFile(OUTPUT, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(PLUGIN.rglob("*")):
             if path.is_file() and "__pycache__" not in path.parts:
-                archive.write(path, path.relative_to(ROOT))
+                name = path.relative_to(ROOT).as_posix()
+                info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o100644 << 16
+                archive.writestr(info, path.read_bytes())
     print(OUTPUT)
 
 
