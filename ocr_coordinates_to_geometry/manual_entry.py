@@ -59,9 +59,10 @@ class CoordinateTable(QTableWidget):
 
 
 class ManualCoordinateDialog(QDialog):
-    def __init__(self, locale_name, rows=None, parent=None):
+    def __init__(self, locale_name, rows=None, seconds_precision=3, parent=None):
         super().__init__(parent)
         self.locale = locale_name
+        self.seconds_precision = max(0, min(6, int(seconds_precision)))
         self.setWindowTitle(self.tr("manual_title"))
         self.resize(1050, 560)
         root = QVBoxLayout(self)
@@ -148,7 +149,7 @@ class ManualCoordinateDialog(QDialog):
         self.table.blockSignals(True)
         self.table.setRowCount(max(10, len(rows)))
         for row_index, row in enumerate(rows):
-            for column, value in enumerate(row.as_cells()):
+            for column, value in enumerate(row.as_cells(self.seconds_precision)):
                 self._set(row_index, column, value)
             self._set(row_index, 7, f"{row.latitude:.8f}")
             self._set(row_index, 8, f"{row.longitude:.8f}")
@@ -198,7 +199,9 @@ class ManualCoordinateDialog(QDialog):
                 parsed = row_from_decimal(
                     point_id, self._number(dd_values[0]), self._number(dd_values[1])
                 )
-                for column, value in enumerate(parsed.as_cells()[1:7], start=1):
+                for column, value in enumerate(
+                    parsed.as_cells(self.seconds_precision)[1:7], start=1
+                ):
                     self._set(row, column, value)
             elif all(dms_values):
                 parsed = row_from_values([point_id, *[self._number(value) for value in dms_values]])
@@ -208,7 +211,9 @@ class ManualCoordinateDialog(QDialog):
                 parsed = row_from_decimal(
                     point_id, self._number(dd_values[0]), self._number(dd_values[1])
                 )
-                for column, value in enumerate(parsed.as_cells()[1:7], start=1):
+                for column, value in enumerate(
+                    parsed.as_cells(self.seconds_precision)[1:7], start=1
+                ):
                     self._set(row, column, value)
         except (ValueError, TypeError):
             return
