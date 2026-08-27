@@ -5,6 +5,7 @@ from ocr_coordinates_to_geometry.core import (
     coordinate_quality_issues,
     coordinate_csv_row,
     CSV_HEADERS,
+    clipboard_column_layout,
     is_header_row,
     split_clipboard_table,
     decimal_to_dms,
@@ -151,6 +152,17 @@ class CoreTests(unittest.TestCase):
         rows = split_clipboard_table("point_id;latitude_dd;longitude_dd\n1;59,75;93,5")
         self.assertTrue(is_header_row(rows[0]))
         self.assertEqual(["1", "59,75", "93,5"], rows[1])
+
+    def test_eight_columns_without_point_id_skip_point_column(self):
+        columns, auto_number, prefer_dd = clipboard_column_layout(8)
+        self.assertEqual(list(range(1, 9)), columns)
+        self.assertTrue(auto_number)
+        self.assertFalse(prefer_dd)
+
+    def test_six_dms_columns_without_point_id_skip_point_column(self):
+        columns, auto_number, _ = clipboard_column_layout(6)
+        self.assertEqual(list(range(1, 7)), columns)
+        self.assertTrue(auto_number)
 
 
 if __name__ == "__main__":
