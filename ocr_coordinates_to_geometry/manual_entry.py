@@ -19,6 +19,7 @@ from qgis.PyQt.QtWidgets import (
 
 from .core import (
     CoordinateRow,
+    clipboard_column_layout,
     is_header_row,
     row_from_decimal,
     row_from_values,
@@ -161,15 +162,7 @@ class ManualCoordinateDialog(QDialog):
             QMessageBox.warning(self, self.tr("clipboard"), self.tr("clipboard_table_empty"))
             return
         width = max(len(row) for row in rows)
-        if width in {2, 3}:
-            target_columns = [7, 8] if width == 2 else [0, 7, 8]
-            prefer_dd = True
-        elif width == 6:
-            target_columns = list(range(1, 7))
-            prefer_dd = False
-        else:
-            target_columns = list(range(min(width, 9)))
-            prefer_dd = False
+        target_columns, auto_number, prefer_dd = clipboard_column_layout(width)
         start_row = max(0, self.table.currentRow())
         required = start_row + len(rows)
         if self.table.rowCount() < required:
@@ -177,7 +170,7 @@ class ManualCoordinateDialog(QDialog):
         self.table.blockSignals(True)
         for offset, values in enumerate(rows):
             row_index = start_row + offset
-            if width in {2, 6} and not self._text(row_index, 0):
+            if auto_number and not self._text(row_index, 0):
                 self._set(row_index, 0, row_index + 1)
             for column, value in zip(target_columns, values):
                 self._set(row_index, column, value)
