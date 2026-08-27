@@ -74,22 +74,51 @@ class CoordinateRow:
     def longitude(self) -> float:
         return dms_to_decimal(self.lon_deg, self.lon_min, self.lon_sec)
 
-    def as_cells(self) -> list[str]:
+    def as_cells(self, seconds_precision: int = 3) -> list[str]:
+        lat_deg, lat_min, lat_sec = rounded_dms_parts(
+            self.lat_deg, self.lat_min, self.lat_sec, seconds_precision
+        )
+        lon_deg, lon_min, lon_sec = rounded_dms_parts(
+            self.lon_deg, self.lon_min, self.lon_sec, seconds_precision
+        )
         return [
             str(self.point_id),
-            format_number(self.lat_deg),
-            format_number(self.lat_min),
-            format_number(self.lat_sec),
-            format_number(self.lon_deg),
-            format_number(self.lon_min),
-            format_number(self.lon_sec),
+            format_number(lat_deg),
+            format_number(lat_min),
+            format_number(lat_sec, seconds_precision),
+            format_number(lon_deg),
+            format_number(lon_min),
+            format_number(lon_sec, seconds_precision),
         ]
 
 
-def format_number(value: float) -> str:
+def format_number(value: float, decimals: int | None = None) -> str:
     if value == 0 and math.copysign(1.0, value) < 0:
         return "-0"
+    if decimals is not None:
+        value = round(value, decimals)
+        if value == 0:
+            return "0"
+        return f"{value:.{decimals}f}".rstrip("0").rstrip(".")
     return str(int(value)) if value.is_integer() else str(value)
+
+
+def rounded_dms_parts(
+    degrees: float, minutes: float, seconds: float, precision: int
+) -> tuple[float, float, float]:
+    """Round seconds without displaying scientific notation and carry 60s/60m."""
+    precision = max(0, min(6, int(precision)))
+    rounded_seconds = round(seconds, precision)
+    rounded_minutes = float(minutes)
+    rounded_degrees = float(degrees)
+    if rounded_seconds >= 60:
+        rounded_seconds = 0.0
+        rounded_minutes += 1.0
+    if rounded_minutes >= 60:
+        rounded_minutes = 0.0
+        sign = -1.0 if math.copysign(1.0, rounded_degrees) < 0 else 1.0
+        rounded_degrees = sign * (abs(rounded_degrees) + 1.0)
+    return rounded_degrees, rounded_minutes, rounded_seconds
 
 
 def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
@@ -304,13 +333,15 @@ CSV_HEADERS = (
 
 
 def coordinate_csv_row(
-    row: CoordinateRow, confidences: Sequence[float | None] = ()
+    row: CoordinateRow,
+    confidences: Sequence[float | None] = (),
+    seconds_precision: int = 3,
 ) -> list[str]:
     """Return one stable, locale-independent CSV record."""
     known = [value for value in confidences if value is not None]
     confidence = f"{min(known) * 100:.1f}" if known else ""
     return [
-        *row.as_cells(),
+        *row.as_cells(seconds_precision),
         f"{row.latitude:.8f}",
         f"{row.longitude:.8f}",
         confidence,
