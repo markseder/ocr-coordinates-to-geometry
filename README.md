@@ -22,7 +22,7 @@ OCR → spreadsheet cleanup → CSV import → point sorting → polygon creatio
 This plugin reduces that workflow to a screenshot, a review table and one
 button.
 
-## Current features — v1.0 beta
+## Current features — v1.0
 
 - Open PNG/JPG images or paste a screenshot from the clipboard.
 - Offline recognition with RapidOCR.
@@ -79,10 +79,10 @@ The selected name is supplemented with separate **points**, **line** and
 **polygon** suffixes. The selected CRS is assigned to the layers; use standard
 QGIS tools when reprojection is required.
 
-## 1.0 stabilization
+## Stable release policy
 
-The feature set is frozen. The beta phase is limited to clean-install checks,
-compatibility fixes and documentation; larger ideas are deferred until users
+Version 1.0 is stable and feature-frozen. Maintenance releases focus on
+confirmed defects and compatibility; larger ideas remain deferred until users
 show a concrete need. Coordinate transformations remain a standard QGIS task.
 
 ## Accuracy and CRS warning
