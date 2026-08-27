@@ -10,9 +10,9 @@
 Turn a screenshot of a coordinate table into numbered points, a line and an
 optional polygon directly in QGIS.
 
-![OCR2Geometry v0.5.0 English interface in QGIS 4](docs/screenshots/ocr2geometry-v0.5.0-en.png)
+![OCR2Geometry English interface in QGIS 4](docs/screenshots/ocr2geometry-v0.5.0-en.png)
 
-*OCR2Geometry v0.5.0 in QGIS 4 with source CRS and output-layer naming.*
+*OCR2Geometry in QGIS 4 with source CRS and output-layer naming.*
 
 ## Why this plugin exists
 
@@ -22,7 +22,7 @@ OCR → spreadsheet cleanup → CSV import → point sorting → polygon creatio
 This plugin reduces that workflow to a screenshot, a review table and one
 button.
 
-## Current features — v0.6.3
+## Current features — v1.0 beta
 
 - Open PNG/JPG images or paste a screenshot from the clipboard.
 - Offline recognition with RapidOCR.
@@ -57,7 +57,7 @@ Point | Lat deg | Lat min | Lat sec | Lon deg | Lon min | Lon sec
 
 ## Install
 
-1. Download [`ocr_coordinates_to_geometry.zip`](dist/ocr_coordinates_to_geometry.zip).
+1. Download `ocr_coordinates_to_geometry.zip` from the [latest GitHub release](https://github.com/markseder/ocr-coordinates-to-geometry/releases).
 2. In QGIS open **Plugins → Manage and Install Plugins → Install from ZIP**.
 3. Select the downloaded ZIP and start the plugin.
 4. On first recognition, allow the plugin to install RapidOCR. Internet access
@@ -79,15 +79,11 @@ The selected name is supplemented with separate **points**, **line** and
 **polygon** suffixes. The selected CRS is assigned to the layers; use standard
 QGIS tools when reprojection is required.
 
-## Planned development
+## 1.0 stabilization
 
-Version 0.5 adds source CRS selection through the standard QGIS catalog
-and custom output-layer names. Coordinate transformations remain a standard
-QGIS responsibility. Future releases focus on quality control, PDF/batch
-processing and more UI languages.
-
-See the complete [development roadmap](ROADMAP.md). Planned items are not yet
-available in the current release.
+The feature set is frozen. The beta phase is limited to clean-install checks,
+compatibility fixes and documentation; larger ideas are deferred until users
+show a concrete need. Coordinate transformations remain a standard QGIS task.
 
 ## Accuracy and CRS warning
 
@@ -108,6 +104,9 @@ read [CONTRIBUTING.md](CONTRIBUTING.md) before sharing documents.
 ## Project documents
 
 - [Roadmap](ROADMAP.md)
+- [User guide](docs/USER_GUIDE.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Third-party notices](ocr_coordinates_to_geometry/THIRD_PARTY_NOTICES.md)
 - [Changelog](CHANGELOG.md)
 - [Windows OCR setup](docs/WINDOWS_OCR_SETUP_RU.md)
 - [Contributing](CONTRIBUTING.md)
@@ -115,8 +114,8 @@ read [CONTRIBUTING.md](CONTRIBUTING.md) before sharing documents.
 
 ## License
 
-MIT. RapidOCR and its OCR models have their own licences; see the upstream
-[RapidOCR project](https://github.com/RapidAI/RapidOCR).
+MIT. Optional OCR components are not bundled; see the
+[third-party notices](ocr_coordinates_to_geometry/THIRD_PARTY_NOTICES.md).
 
 ## Developers
 
