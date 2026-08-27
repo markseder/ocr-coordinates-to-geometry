@@ -5,6 +5,12 @@ while it matures toward 1.0.
 
 ## Unreleased
 
+## 1.0.0 — 2026-08-27
+
+- Promoted the tested `1.0.0-beta1` feature set to the first stable release.
+- Confirmed the complete workflow in QGIS 4 on Windows.
+- Removed the experimental metadata flag.
+
 ## 1.0.0-beta1 — 2026-08-27
 
 - Froze the feature set for 1.0 stabilization.
