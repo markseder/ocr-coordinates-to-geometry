@@ -48,6 +48,7 @@ tests, documentation and a real QGIS 4 field test.
 
 ## Deferred ideas — only after demonstrated user demand
 
+- [ ] Planar `X/Y` coordinate input for projected and user-defined CRS, including local engineering coordinate systems; the source CRS must be selected explicitly and is never guessed.
 - [ ] PDF page import and table-region selection.
 - [ ] Multiple tables in one document.
 - [ ] Batch image/folder processing.
