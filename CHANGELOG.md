@@ -5,7 +5,7 @@ while it matures toward 1.0.
 
 ## Unreleased
 
-### 0.6.3-beta3
+## 0.6.3 — 2026-08-27
 
 - Replaced the plain-text coordinate dialog with a nine-column spreadsheet editor.
 - Added Ctrl+C/Ctrl+V support for Excel-style table ranges.
@@ -17,6 +17,7 @@ while it matures toward 1.0.
 - Added a persistent 0–6 decimal precision setting for seconds (default: 3).
 - Removed scientific notation from displayed seconds.
 - Added correct carry normalization when rounded seconds reach 60.
+- Confirmed in QGIS 4.0 on Windows.
 
 ## 0.6.2 — 2026-08-26
 
