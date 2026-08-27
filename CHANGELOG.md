@@ -5,6 +5,14 @@ while it matures toward 1.0.
 
 ## Unreleased
 
+## 1.0.0-beta1 — 2026-08-27
+
+- Froze the feature set for 1.0 stabilization.
+- Added reproducible ZIP builds and package checks for licence and dependency notices.
+- Added bilingual user guides, troubleshooting and a clean-install release checklist.
+- Moved downloadable packages to GitHub Releases instead of the source tree.
+- Kept the beta marked experimental until clean-profile QGIS verification.
+
 ## 0.6.3 — 2026-08-27
 
 - Replaced the plain-text coordinate dialog with a nine-column spreadsheet editor.
