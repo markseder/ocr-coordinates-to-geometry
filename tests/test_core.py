@@ -11,6 +11,7 @@ from ocr_coordinates_to_geometry.core import (
     decimal_to_dms,
     dms_to_decimal,
     format_number,
+    rounded_dms_parts,
     numbers_from_text,
     parse_lines,
     parse_coordinate_lines,
@@ -163,6 +164,15 @@ class CoreTests(unittest.TestCase):
         columns, auto_number, _ = clipboard_column_layout(6)
         self.assertEqual(list(range(1, 7)), columns)
         self.assertTrue(auto_number)
+
+    def test_small_seconds_are_not_scientific_notation(self):
+        self.assertEqual("0", format_number(0.000012, 3))
+
+    def test_seconds_are_rounded_to_selected_precision(self):
+        self.assertEqual("12.346", format_number(12.34567, 3))
+
+    def test_seconds_rounding_carries_into_minutes_and_degrees(self):
+        self.assertEqual((60.0, 0.0, 0.0), rounded_dms_parts(59, 59, 59.999988, 3))
 
 
 if __name__ == "__main__":
