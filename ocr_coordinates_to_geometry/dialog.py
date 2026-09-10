@@ -58,10 +58,13 @@ from .core import (
     coordinate_quality_issues,
     parse_coordinate_lines,
     row_from_values,
+    numbers_from_text,
 )
-from .ocr import OcrLine, OcrUnavailableError, recognize_lines
+from .ocr import OcrLine, OcrUnavailableError, recognize_lines, is_table_header
 from .i18n import translate
 from .manual_entry import ManualCoordinateDialog
+from .table_values import ExactValueDelegate, RAW_VALUE_ROLE, OCR_SOURCE_ROLE, cell_value, numeric_item
+from .background import run_background
 
 
 class OcrCoordinatesDialog(QDialog):
@@ -139,6 +142,7 @@ class OcrCoordinatesDialog(QDialog):
         root.addWidget(input_group)
 
         self.table = QTableWidget(0, 9)
+        self.table.setItemDelegate(ExactValueDelegate(self.table))
         self.table.setHorizontalHeaderLabels(
             [
                 self.tr("point"),
@@ -313,7 +317,8 @@ class OcrCoordinatesDialog(QDialog):
         try:
             current_rows = self.rows_from_table(apply_sort=False)
         except ValueError:
-            current_rows = []
+            QMessageBox.warning(self, self.tr("table_error"), self.tr("repair_main_table"))
+            return
         dialog = ManualCoordinateDialog(
             self.locale,
             current_rows,
@@ -351,43 +356,58 @@ class OcrCoordinatesDialog(QDialog):
                 self.status.setText(self.tr("ocr_missing"))
                 return
         try:
-            lines = recognize_lines(self.image_path)
+            image_path = self.image_path
+            lines = run_background(lambda: recognize_lines(image_path), self.tr("recognizing"), self)
         except OcrUnavailableError as error:
             QMessageBox.critical(self, self.tr("ocr_missing"), str(error))
             self.status.setText(self.tr("ocr_need_install"))
             return
+        except Exception as error:
+            QMessageBox.critical(self, self.tr("error"), str(error))
+            self.status.setText(self.tr("recognition_failed"))
+            return
         self.process_coordinate_lines(lines)
 
     def process_coordinate_lines(self, lines):
-        prepared = [
-            (line.text, line.confidences) if isinstance(line, OcrLine) else (str(line), ())
-            for line in lines
-        ]
-        text_lines = [text for text, _ in prepared]
-        rows, warnings, detected = parse_coordinate_lines(
-            text_lines,
-            coordinate_format=self.format_combo.currentData(),
-            axis_order=self.axis_combo.currentData(),
-            sort_by_point=False,
-        )
-        accepted_confidences = []
-        for text, confidences in prepared:
-            accepted, _, _ = parse_coordinate_lines(
-                [text],
+        prepared = [line if isinstance(line, OcrLine) else OcrLine(str(line)) for line in lines]
+        prepared = [line for line in prepared if not is_table_header(line)]
+        paired = []
+        damaged_cells = []
+        warnings = []
+        formats = set()
+        for number, line in enumerate(prepared, 1):
+            # Empty cells must not shift columns or turn a damaged DMS row into DD.
+            incomplete = bool(line.cells) and any(
+                not cell.strip() or len(numbers_from_text(cell)) != 1 for cell in line.cells
+            )
+            accepted, problems, detected = parse_coordinate_lines(
+                [line.text] if not incomplete else [],
                 coordinate_format=self.format_combo.currentData(),
                 axis_order=self.axis_combo.currentData(),
                 sort_by_point=False,
+                start_number=number,
             )
             if accepted:
-                accepted_confidences.append(tuple(confidences))
-        paired = list(zip(rows, accepted_confidences))
-        if bool(self.order_combo.currentData()):
+                paired.append((accepted[0], line.confidences, ""))
+                damaged_cells.append(())
+                formats.add(detected)
+            else:
+                source = line.text or self.tr("unreadable_ocr_row")
+                paired.append((None, (), source))
+                cells = line.cells
+                if len(cells) == 7 and self.axis_combo.currentData() == "lon_lat":
+                    cells = (cells[0], *cells[4:7], *cells[1:4])
+                damaged_cells.append(cells)
+                warnings.append(self.tr("ocr_row_incomplete", row=number, source=source))
+            warnings.extend(problems)
+        # Preserve the source order while incomplete rows need comparison to the image.
+        if paired and all(row is not None for row, _, _ in paired) and bool(self.order_combo.currentData()):
             paired.sort(key=lambda item: item[0].point_id)
-        rows = [row for row, _ in paired]
-        confidences = [values for _, values in paired]
-        self.fill_table(rows, confidences)
+        rows = [row for row, _, _ in paired]
+        confidences = [values for _, values, _ in paired]
+        self.fill_table(rows, confidences, [source for _, _, source in paired], damaged_cells)
         if rows:
-            format_name = (detected or self.format_combo.currentData() or "auto").upper()
+            format_name = (next(iter(formats)) if len(formats) == 1 else self.format_combo.currentData()).upper()
             self.status.setText(
                 self.tr("detected_format", format=format_name, count=len(rows))
             )
@@ -413,12 +433,17 @@ class OcrCoordinatesDialog(QDialog):
         def update_progress(line):
             now = time.monotonic()
             if now - last_update[0] > 0.1:
-                progress.setLabelText(line[:160] or self.tr("downloading"))
+                if line:
+                    progress.setLabelText(line[:160])
                 QApplication.processEvents()
                 last_update[0] = now
 
-        ok, log = install_rapidocr(update_progress, progress.wasCanceled)
-        progress.close()
+        try:
+            ok, log = install_rapidocr(update_progress, progress.wasCanceled)
+        except Exception as error:
+            ok, log = False, str(error)
+        finally:
+            progress.close()
         if ok:
             self.status.setText(self.tr("ocr_ready_status"))
             QMessageBox.information(
@@ -445,7 +470,7 @@ class OcrCoordinatesDialog(QDialog):
             python_executable = str(error)
         return "\n".join(
             [
-                "OCR2Geometry: 1.0.1",
+                "OCR2Geometry: 1.0.2",
                 f"QGIS: {Qgis.QGIS_VERSION}",
                 f"Locale: {self.locale}",
                 f"OS: {platform.platform()}",
@@ -461,7 +486,7 @@ class OcrCoordinatesDialog(QDialog):
         dialog.setWindowTitle(self.tr("about_title"))
         dialog.resize(620, 430)
         layout = QVBoxLayout(dialog)
-        title = QLabel("<h2>OCR2Geometry 1.0.1</h2>")
+        title = QLabel("<h2>OCR2Geometry 1.0.2</h2>")
         title.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(title)
         description = QLabel(
@@ -507,15 +532,30 @@ class OcrCoordinatesDialog(QDialog):
         layout.addWidget(buttons)
         dialog.exec()
 
-    def fill_table(self, rows, confidences=None):
+    def fill_table(self, rows, confidences=None, raw_sources=None, damaged_cells=None):
         self.row_confidences = list(confidences or [()] * len(rows))
         self.table.blockSignals(True)
         self.table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
+            if row is None:
+                source = raw_sources[row_index] if raw_sources else self.tr("unreadable_ocr_row")
+                original = damaged_cells[row_index] if damaged_cells else ()
+                for column in range(9):
+                    text = original[column] if len(original) == 7 and column < 7 else ""
+                    item = QTableWidgetItem(text)
+                    item.setBackground(QBrush(QColor("#ffcdd2")))
+                    item.setToolTip(self.tr("ocr_source", source=source))
+                    item.setData(OCR_SOURCE_ROLE, source)
+                    if column >= 7:
+                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    self.table.setItem(row_index, column, item)
+                continue
+            raw = [row.point_id, row.lat_deg, row.lat_min, row.lat_sec,
+                   row.lon_deg, row.lon_min, row.lon_sec]
             for column, text in enumerate(
                 row.as_cells(self.seconds_precision_spin.value())
             ):
-                self.table.setItem(row_index, column, QTableWidgetItem(text))
+                self.table.setItem(row_index, column, numeric_item(text, raw[column]))
             self._set_decimal_cells(row_index, row)
             self._apply_confidence_style(row_index)
         self.table.blockSignals(False)
@@ -541,11 +581,7 @@ class OcrCoordinatesDialog(QDialog):
             item = self.table.item(row_index, column)
             if item is None:
                 continue
-            score = (
-                confidences[column]
-                if column < 7 and len(confidences) == 7 and confidences[column] is not None
-                else row_score
-            )
+            score = row_score
             color = "#c8e6c9" if score >= 0.90 else "#fff3b0" if score >= 0.75 else "#ffcdd2"
             item.setBackground(QBrush(QColor(color)))
             item.setToolTip(self.tr("confidence_value", value=f"{score * 100:.1f}"))
@@ -555,33 +591,41 @@ class OcrCoordinatesDialog(QDialog):
             item = self.table.item(row_index, column)
             if item is not None:
                 item.setBackground(QBrush())
-                item.setToolTip("")
+                source = item.data(OCR_SOURCE_ROLE)
+                item.setToolTip(self.tr("ocr_source", source=source) if source else "")
 
     def _set_decimal_cells(self, row_index, row):
         for column, value in ((7, row.latitude), (8, row.longitude)):
-            item = QTableWidgetItem(f"{value:.8f}")
+            item = numeric_item(f"{value:.8f}", value)
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.table.setItem(row_index, column, item)
 
     def update_decimal_preview(self, row_index, column):
         if column >= 7:
             return
-        if row_index < len(self.row_confidences):
-            self.row_confidences[row_index] = ()
-            self._clear_confidence_style(row_index)
-        try:
-            values = []
-            for current_column in range(7):
-                item = self.table.item(row_index, current_column)
-                if item is None or not item.text().strip():
-                    return
-                values.append(float(item.text().strip().replace(",", ".")))
-            row = row_from_values(values)
-        except ValueError:
-            return
         self.table.blockSignals(True)
-        self._set_decimal_cells(row_index, row)
-        self.table.blockSignals(False)
+        try:
+            changed = self.table.item(row_index, column)
+            if changed is not None:
+                changed.setData(RAW_VALUE_ROLE, None)
+            if row_index < len(self.row_confidences):
+                self.row_confidences[row_index] = ()
+                self._clear_confidence_style(row_index)
+            try:
+                row = row_from_values([
+                    cell_value(self.table.item(row_index, c)) for c in range(7)
+                ])
+            except (ValueError, OverflowError):
+                for dd_column in (7, 8):
+                    item = QTableWidgetItem("")
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    self.table.setItem(row_index, dd_column, item)
+                if changed is not None:
+                    changed.setBackground(QBrush(QColor("#ffcdd2")))
+                return
+            self._set_decimal_cells(row_index, row)
+        finally:
+            self.table.blockSignals(False)
 
     def rows_from_table(self, apply_sort=True) -> list[CoordinateRow]:
         rows = []
@@ -591,7 +635,7 @@ class OcrCoordinatesDialog(QDialog):
                 item = self.table.item(row_index, column)
                 if item is None or not item.text().strip():
                     raise ValueError(self.tr("empty_cell", row=row_index + 1))
-                values.append(float(item.text().strip().replace(",", ".")))
+                values.append(cell_value(item))
             rows.append(row_from_values(values))
         if apply_sort and bool(self.order_combo.currentData()):
             rows.sort(key=lambda row: row.point_id)
@@ -744,6 +788,9 @@ class OcrCoordinatesDialog(QDialog):
         source_crs = self.crs_widget.crs()
         if not source_crs.isValid():
             QMessageBox.critical(self, self.tr("crs_error"), self.tr("invalid_crs"))
+            return
+        if not source_crs.isGeographic() or source_crs.mapUnits() != Qgis.DistanceUnit.Degrees:
+            QMessageBox.critical(self, self.tr("crs_error"), self.tr("geographic_crs_required"))
             return
         base_name = self.layer_name_edit.text().strip() or "OCR2Geometry"
         self._save_options()

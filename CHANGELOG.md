@@ -5,6 +5,29 @@ while it matures toward 1.0.
 
 ## Unreleased
 
+## 1.0.2 — release candidate
+
+- Validate raw DMS/DM components and full latitude/longitude bounds before conversion.
+- Reject nonfinite coordinates and point IDs outside the QGIS 32-bit field range.
+- Apply lone N/S/E/W markers to the correct axis and reject conflicting markers.
+- Keep exact numeric values separate from rounded table display; editors expose the
+  full stored value and geometry/CSV DD columns use it.
+- Invalidate derived coordinates after incorrect or incomplete manual edits;
+  replacing a clipboard row never reuses its previous coordinates.
+- Preserve incomplete grid OCR rows and source text for manual repair instead of
+  dropping vertices; recognizable text-only headers are excluded.
+- Limit source CRS to geographic coordinates in degrees until planar input exists.
+- Bound missing-number reporting to the first 100 IDs plus the total count.
+- Run OCR in a worker thread and keep installation cancellation responsive even
+  while pip produces no output; enforce a 20-minute installation timeout.
+- Show minimum OCR confidence per row to avoid assigning scores to the wrong
+  coordinate after axis reversal or DMS/DD conversion.
+- Add real Qt-widget, synthetic OpenCV-grid and subprocess regression tests to
+  Linux and Windows CI. Actual QGIS 4 / RapidOCR Windows acceptance is pending.
+
+The dependency mirror remains tracked separately in Issue #8; it is not included
+in this repair release.
+
 ## 1.0.1 — 2026-08-27
 
 - Documented the fixed-argument OCR installer subprocess with a targeted

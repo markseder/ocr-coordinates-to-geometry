@@ -22,3 +22,24 @@ numbered automatically. Export the reviewed table with **Save CSV**.
 
 Assigning a CRS does not transform coordinates. Use standard QGIS reprojection
 or export tools when a different CRS is required.
+
+
+## Validation and precision in 1.0.2
+
+- Invalid DMS/DM components and coordinates beyond ±90° latitude / ±180° longitude
+  are rejected before normalization.
+- Second decimals affect display only. Opening a cell editor exposes its exact
+  stored value; geometry and CSV decimal-degree columns use that value. CSV DMS
+  follows display precision, while CSV decimal degrees use eight decimal places.
+- Invalid manual input clears derived cells and prevents acceptance until repaired.
+- Incomplete OCR rows remain red in the main table. Hover to read the original
+  source text, then repair the DMS cells or deliberately delete the row after
+  comparing it with the image. Unparseable DD/DM rows need manual DMS entry,
+  including the point ID if it is blank.
+- Color represents minimum OCR confidence for the whole row, not the probability
+  that a particular calculated coordinate is correct.
+- Select a geographic source CRS using degrees. Projected CRS and planar X/Y input
+  are not supported yet; use QGIS tools for subsequent reprojection.
+- OCR runs in a worker thread. Individual inference calls cannot be interrupted;
+  its progress window closes on completion.
+- Installation can be cancelled while pip is silent; total timeout is 20 minutes.

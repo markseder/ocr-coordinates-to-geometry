@@ -6,6 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+import re
 
 
 class OcrUnavailableError(RuntimeError):
@@ -24,6 +25,15 @@ class OcrToken:
 class OcrLine:
     text: str
     confidences: tuple[float | None, ...] = ()
+    cells: tuple[str, ...] = ()
+
+
+def is_table_header(line: OcrLine) -> bool:
+    """Only skip recognizable text-only headings, never incomplete data rows."""
+    return not re.search(r"\d", line.text) and bool(re.search(
+        r"\b(point|latitude|longitude|lat|lon|id|широта|долгота|номер|точки)\b|№",
+        line.text, re.IGNORECASE,
+    ))
 
 
 def _load_engine():
@@ -119,12 +129,16 @@ def _recognize_grid_cells(engine, image_path: str | Path) -> list[OcrLine]:
             crop = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
             crop = cv2.copyMakeBorder(crop, 15, 15, 15, 15, cv2.BORDER_CONSTANT, value=255)
             result = engine(crop, use_det=False, use_cls=False, use_rec=True)
-            texts = getattr(result, "txts", ()) or ()
-            scores = getattr(result, "scores", ()) or ()
-            values.append(str(texts[0]).strip() if texts else "")
-            confidences.append(float(scores[0]) if scores else None)
-        if all(values):
-            lines.append(OcrLine(" ".join(values), tuple(confidences)))
+            if not hasattr(result, "txts"):
+                # Legacy engines use a different cell API; use their full-image path.
+                return []
+            texts = result.txts if result.txts is not None else ()
+            scores = getattr(result, "scores", None)
+            scores = scores if scores is not None else ()
+            values.append(str(texts[0]).strip() if len(texts) else "")
+            confidences.append(float(scores[0]) if len(scores) else None)
+        # Keep even completely unreadable rows: deleting a vertex changes geometry.
+        lines.append(OcrLine("\t".join(values), tuple(confidences), tuple(values)))
     return lines
 
 

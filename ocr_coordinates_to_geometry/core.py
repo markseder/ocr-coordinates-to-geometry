@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections import Counter
 import csv
 from io import StringIO
 import math
@@ -127,7 +128,9 @@ def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
 
 
 def decimal_to_dms(value: float) -> tuple[float, float, float]:
-    sign = -1.0 if value < 0 else 1.0
+    if not math.isfinite(value):
+        raise ValueError("Coordinates must be finite numbers")
+    sign = math.copysign(1.0, value)
     absolute = abs(value)
     degrees = int(absolute)
     minute_value = (absolute - degrees) * 60.0
@@ -156,21 +159,35 @@ def numbers_from_text(text: str) -> list[float]:
 def row_from_values(values: Sequence[float]) -> CoordinateRow:
     if len(values) != 7:
         raise ValueError(f"Expected 7 numeric values, got {len(values)}")
+    if not all(math.isfinite(value) for value in values):
+        raise ValueError("Coordinates and point numbers must be finite")
     point = int(values[0])
-    if values[0] != point or point < 1:
-        raise ValueError("Point number must be a positive integer")
+    if values[0] != point or not 1 <= point <= 2147483647:
+        raise ValueError("Point number must be an integer between 1 and 2147483647")
     row = CoordinateRow(point, *map(float, values[1:]))
     validate_row(row)
     return row
 
 
 def row_from_decimal(point_id: int, latitude: float, longitude: float) -> CoordinateRow:
+    if not math.isfinite(latitude) or not -90 <= latitude <= 90:
+        raise ValueError("Latitude must be between -90 and 90")
+    if not math.isfinite(longitude) or not -180 <= longitude <= 180:
+        raise ValueError("Longitude must be between -180 and 180")
     lat = decimal_to_dms(latitude)
     lon = decimal_to_dms(longitude)
     return row_from_values([point_id, *lat, *lon])
 
 
 def validate_row(row: CoordinateRow) -> None:
+    if not all(math.isfinite(v) for v in (
+        row.lat_deg, row.lat_min, row.lat_sec, row.lon_deg, row.lon_min, row.lon_sec
+    )):
+        raise ValueError("Coordinates must be finite numbers")
+    if not float(row.lat_deg).is_integer() or not float(row.lon_deg).is_integer():
+        raise ValueError("DMS degrees must be whole numbers; use DD for decimal degrees")
+    if not float(row.lat_min).is_integer() or not float(row.lon_min).is_integer():
+        raise ValueError("DMS minutes must be whole numbers; use DM for decimal minutes")
     if not 0 <= row.lat_min < 60 or not 0 <= row.lon_min < 60:
         raise ValueError("Minutes must be between 0 and 59.999")
     if not 0 <= row.lat_sec < 60 or not 0 <= row.lon_sec < 60:
@@ -179,15 +196,39 @@ def validate_row(row: CoordinateRow) -> None:
         raise ValueError("Latitude degrees must be between -90 and 90")
     if not -180 <= row.lon_deg <= 180:
         raise ValueError("Longitude degrees must be between -180 and 180")
+    if not -90 <= row.latitude <= 90:
+        raise ValueError("Latitude must be between -90 and 90")
+    if not -180 <= row.longitude <= 180:
+        raise ValueError("Longitude must be between -180 and 180")
 
 
 def _coordinate_directions(text: str, axis_order: str) -> tuple[str, str]:
     directions = [match.upper() for match in HEMISPHERE_RE.findall(text.upper())]
-    first = directions[0] if directions else ""
-    second = directions[1] if len(directions) > 1 else ""
-    if axis_order == "lon_lat":
-        return second, first
-    return first, second
+    latitude = [d for d in directions if d in {"N", "S"}]
+    longitude = [d for d in directions if d in {"E", "W"}]
+    if len(latitude) > 1 or len(longitude) > 1:
+        raise ValueError("Duplicate or conflicting hemisphere markers")
+    return latitude[0] if latitude else "", longitude[0] if longitude else ""
+
+
+def _checked_angle(parts: Sequence[float], limit: int, coordinate_format: str) -> float:
+    """Validate source components before any DMS/DM normalization."""
+    if not all(math.isfinite(value) for value in parts):
+        raise ValueError("Coordinates must be finite numbers")
+    degrees, minutes = parts[:2]
+    seconds = parts[2] if len(parts) == 3 else 0.0
+    if not degrees.is_integer():
+        raise ValueError("Degrees must be whole numbers in DMS/DM")
+    if not 0 <= minutes < 60:
+        raise ValueError("Minutes must be between 0 and 59.999")
+    if coordinate_format == "dms" and not minutes.is_integer():
+        raise ValueError("DMS minutes must be whole numbers")
+    if not 0 <= seconds < 60:
+        raise ValueError("Seconds must be between 0 and 59.999")
+    angle = dms_to_decimal(degrees, minutes, seconds)
+    if not -limit <= angle <= limit:
+        raise ValueError(f"Coordinate must be between {-limit} and {limit}")
+    return angle
 
 
 def detect_coordinate_format(number_count: int) -> tuple[str | None, bool]:
@@ -206,7 +247,11 @@ def _row_from_line(
     coordinate_format: str,
     axis_order: str,
 ) -> tuple[CoordinateRow, str]:
+    if re.search(r"(?<!\w)[+-]?(?:nan|inf(?:inity)?)(?!\w)", text, re.IGNORECASE):
+        raise ValueError("Coordinates and point numbers must be finite")
     values = numbers_from_text(text)
+    if not all(math.isfinite(value) for value in values):
+        raise ValueError("Coordinates and point numbers must be finite")
     detected, has_point_id = detect_coordinate_format(len(values))
     selected_format = detected if coordinate_format == "auto" else coordinate_format
     if selected_format not in FORMATS[1:]:
@@ -226,12 +271,11 @@ def _row_from_line(
     else:
         point_id = line_number
 
-    if selected_format == "dms":
-        first = dms_to_decimal(*values[:3])
-        second = dms_to_decimal(*values[3:6])
-    elif selected_format == "dm":
-        first = dms_to_decimal(values[0], values[1], 0)
-        second = dms_to_decimal(values[2], values[3], 0)
+    if selected_format in {"dms", "dm"}:
+        width = 3 if selected_format == "dms" else 2
+        limits = (180, 90) if axis_order == "lon_lat" else (90, 180)
+        first = _checked_angle(values[:width], limits[0], selected_format)
+        second = _checked_angle(values[width:], limits[1], selected_format)
     else:
         first, second = values
 
@@ -250,6 +294,7 @@ def parse_coordinate_lines(
     coordinate_format: str = "auto",
     axis_order: str = "lat_lon",
     sort_by_point: bool = True,
+    start_number: int = 1,
 ) -> tuple[list[CoordinateRow], list[str], str | None]:
     if coordinate_format not in FORMATS:
         raise ValueError(f"Unsupported coordinate format: {coordinate_format}")
@@ -258,7 +303,7 @@ def parse_coordinate_lines(
     rows: list[CoordinateRow] = []
     warnings: list[str] = []
     detected_formats: list[str] = []
-    for line_number, text in enumerate(lines, start=1):
+    for line_number, text in enumerate(lines, start=start_number):
         values = numbers_from_text(text)
         if not values:
             continue
@@ -270,7 +315,7 @@ def parse_coordinate_lines(
             warnings.append(f"Line {line_number}: {error}")
     if sort_by_point:
         rows.sort(key=lambda item: item.point_id)
-    duplicate_ids = sorted({r.point_id for r in rows if sum(x.point_id == r.point_id for x in rows) > 1})
+    duplicate_ids = sorted(value for value, count in Counter(r.point_id for r in rows).items() if count > 1)
     if duplicate_ids:
         warnings.append("Duplicate point numbers: " + ", ".join(map(str, duplicate_ids)))
     unique_formats = set(detected_formats)
@@ -296,14 +341,23 @@ def coordinate_quality_issues(rows: Sequence[CoordinateRow]) -> list[tuple[str, 
     """Return dependency-free coordinate-table issues for UI reporting."""
     issues: list[tuple[str, tuple[int, ...]]] = []
     point_ids = [row.point_id for row in rows]
-    duplicate_ids = tuple(sorted({value for value in point_ids if point_ids.count(value) > 1}))
+    duplicate_ids = tuple(sorted(value for value, count in Counter(point_ids).items() if count > 1))
     if duplicate_ids:
         issues.append(("duplicate_point_ids", duplicate_ids))
     if point_ids:
-        present = set(point_ids)
-        missing = tuple(value for value in range(min(point_ids), max(point_ids) + 1) if value not in present)
+        present = sorted(set(point_ids))
+        missing_count = present[-1] - present[0] + 1 - len(present)
+        missing_values = []
+        for left, right in zip(present, present[1:]):
+            remaining = 100 - len(missing_values)
+            if remaining <= 0:
+                break
+            missing_values.extend(range(left + 1, min(right, left + 1 + remaining)))
+        missing = tuple(missing_values)
         if missing:
             issues.append(("missing_point_ids", missing))
+        if missing_count > len(missing):
+            issues.append(("missing_point_ids_truncated", (missing_count,)))
     coincident = []
     for first, second in zip(rows, rows[1:]):
         if (first.longitude, first.latitude) == (second.longitude, second.latitude):

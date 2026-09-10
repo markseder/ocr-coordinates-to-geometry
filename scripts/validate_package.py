@@ -25,6 +25,9 @@ REQUIRED = {
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     "requirements-ocr.txt",
+    "table_values.py",
+    "background.py",
+    "install_process.py",
 }
 FORBIDDEN_PARTS = {"__pycache__", ".git", ".github"}
 
