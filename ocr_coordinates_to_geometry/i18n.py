@@ -4,6 +4,14 @@ from __future__ import annotations
 
 
 RU = {
+    "repair_main_table": "Сначала исправьте или удалите незаполненные строки в основной таблице. Исходный текст OCR доступен в подсказке ячейки.",
+    "recognition_failed": "Ошибка распознавания — таблица не изменена",
+    "unreadable_ocr_row": "Строка таблицы не распознана",
+    "ocr_row_incomplete": "Строка {row} требует проверки: {source}",
+    "ocr_source": "Исходная строка OCR: {source}\nИсправьте координаты DMS или удалите строку после сверки с изображением.",
+    "geographic_crs_required": "Сейчас поддерживаются широта и долгота в градусах. Выберите географическую CRS с единицей «градусы». Плоские X/Y пока не поддерживаются; перепроецирование выполняйте средствами QGIS.",
+    "missing_point_ids_truncated": "Всего пропущено номеров: {points}; выше показаны только первые 100.",
+
     "plugin_name": "OCR2Geometry",
     "menu_name": "OCR2Geometry",
     "tooltip": "Построить точки, линию и полигон из скриншота таблицы координат",
@@ -46,7 +54,7 @@ RU = {
     "csv_saved_title": "CSV сохранён",
     "csv_saved": "Сохранено строк: {count}\n\n{path}",
     "csv_saved_status": "CSV сохранён, строк: {count}",
-    "confidence_legend": "Достоверность OCR: <span style='background:#c8e6c9'> высокая ≥90% </span> <span style='background:#fff3b0'> проверить 75–89% </span> <span style='background:#ffcdd2'> низкая &lt;75% </span>",
+    "confidence_legend": "Минимальная достоверность OCR в строке: <span style='background:#c8e6c9'> высокая ≥90% </span> <span style='background:#fff3b0'> проверить 75–89% </span> <span style='background:#ffcdd2'> низкая &lt;75% </span>",
     "confidence_value": "Достоверность OCR: {value}%",
     "result_group": "Создаваемые слои",
     "layer_name": "Название:",
@@ -148,6 +156,14 @@ def translate(key: str, locale_name: str | None = None, **values) -> str:
 EN = {key: key for key in RU}
 EN.update(
     {
+        "repair_main_table": "First repair or delete incomplete rows in the main table. The original OCR text is available in cell tooltips.",
+        "recognition_failed": "Recognition failed — table unchanged",
+        "unreadable_ocr_row": "Table row could not be recognized",
+        "ocr_row_incomplete": "Row {row} needs review: {source}",
+        "ocr_source": "Original OCR row: {source}\nRepair the DMS coordinates or delete the row after checking the image.",
+        "geographic_crs_required": "Only latitude/longitude in degrees are supported. Select a geographic CRS using degrees. Planar X/Y is not supported yet; use QGIS tools for reprojection.",
+        "missing_point_ids_truncated": "Total missing numbers: {points}; only the first 100 are listed above.",
+
         "plugin_name": "OCR2Geometry",
         "menu_name": "OCR2Geometry",
         "tooltip": "Create points, a line and a polygon from a screenshot of a coordinate table",
@@ -190,7 +206,7 @@ EN.update(
         "csv_saved_title": "CSV saved",
         "csv_saved": "Rows saved: {count}\n\n{path}",
         "csv_saved_status": "CSV saved, rows: {count}",
-        "confidence_legend": "OCR confidence: <span style='background:#c8e6c9'> high ≥90% </span> <span style='background:#fff3b0'> review 75–89% </span> <span style='background:#ffcdd2'> low &lt;75% </span>",
+        "confidence_legend": "Minimum OCR confidence per row: <span style='background:#c8e6c9'> high ≥90% </span> <span style='background:#fff3b0'> review 75–89% </span> <span style='background:#ffcdd2'> low &lt;75% </span>",
         "confidence_value": "OCR confidence: {value}%",
         "result_group": "Output layers",
         "layer_name": "Name:",

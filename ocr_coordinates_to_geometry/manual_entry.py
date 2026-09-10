@@ -26,6 +26,8 @@ from .core import (
     split_clipboard_table,
 )
 from .i18n import translate
+from .table_values import ExactValueDelegate, RAW_VALUE_ROLE, cell_value, numeric_item
+from qgis.PyQt.QtGui import QBrush, QColor
 
 
 class CoordinateTable(QTableWidget):
@@ -69,6 +71,7 @@ class ManualCoordinateDialog(QDialog):
         root.addWidget(QLabel(self.tr("manual_hint")))
 
         self.table = CoordinateTable(self)
+        self.table.setItemDelegate(ExactValueDelegate(self.table))
         self.table.setHorizontalHeaderLabels(
             [
                 self.tr("point"),
@@ -125,8 +128,11 @@ class ManualCoordinateDialog(QDialog):
         item = self.table.item(row, column)
         return item.text().strip() if item else ""
 
-    def _set(self, row, column, value):
-        self.table.setItem(row, column, QTableWidgetItem(str(value)))
+    def _set(self, row, column, value, raw_value=None):
+        self.table.setItem(row, column, numeric_item(value, raw_value))
+
+    def _value(self, row, column):
+        return cell_value(self.table.item(row, column))
 
     def add_row(self):
         row = self.table.rowCount()
@@ -149,10 +155,12 @@ class ManualCoordinateDialog(QDialog):
         self.table.blockSignals(True)
         self.table.setRowCount(max(10, len(rows)))
         for row_index, row in enumerate(rows):
+            raw = [row.point_id, row.lat_deg, row.lat_min, row.lat_sec,
+                   row.lon_deg, row.lon_min, row.lon_sec]
             for column, value in enumerate(row.as_cells(self.seconds_precision)):
-                self._set(row_index, column, value)
-            self._set(row_index, 7, f"{row.latitude:.8f}")
-            self._set(row_index, 8, f"{row.longitude:.8f}")
+                self._set(row_index, column, value, raw[column])
+            self._set(row_index, 7, f"{row.latitude:.8f}", row.latitude)
+            self._set(row_index, 8, f"{row.longitude:.8f}", row.longitude)
         self.table.blockSignals(False)
 
     def paste_from_clipboard(self):
@@ -171,6 +179,9 @@ class ManualCoordinateDialog(QDialog):
         self.table.blockSignals(True)
         for offset, values in enumerate(rows):
             row_index = start_row + offset
+            # Replacement must never reuse coordinates from an older row.
+            for column in range(1, 9):
+                self._set(row_index, column, "")
             if auto_number and not self._text(row_index, 0):
                 self._set(row_index, 0, row_index + 1)
             for column, value in zip(target_columns, values):
@@ -180,43 +191,53 @@ class ManualCoordinateDialog(QDialog):
 
     def cell_changed(self, row, column):
         self.table.blockSignals(True)
-        self._sync_row(row, prefer_dd=column in {7, 8})
-        self.table.blockSignals(False)
-
-    def _sync_row(self, row, prefer_dd=False):
-        point_text = self._text(row, 0)
-        if not point_text:
-            self._set(row, 0, row + 1)
-            point_text = str(row + 1)
         try:
-            point_value = self._number(point_text)
-            point_id = int(point_value)
-            if point_value != point_id or point_id < 1:
-                raise ValueError("Point number must be a positive integer")
-            dd_values = [self._text(row, column) for column in (7, 8)]
-            dms_values = [self._text(row, column) for column in range(1, 7)]
-            if prefer_dd and all(dd_values):
-                parsed = row_from_decimal(
-                    point_id, self._number(dd_values[0]), self._number(dd_values[1])
-                )
-                for column, value in enumerate(
-                    parsed.as_cells(self.seconds_precision)[1:7], start=1
-                ):
-                    self._set(row, column, value)
-            elif all(dms_values):
-                parsed = row_from_values([point_id, *[self._number(value) for value in dms_values]])
-                self._set(row, 7, f"{parsed.latitude:.8f}")
-                self._set(row, 8, f"{parsed.longitude:.8f}")
-            elif all(dd_values):
-                parsed = row_from_decimal(
-                    point_id, self._number(dd_values[0]), self._number(dd_values[1])
-                )
-                for column, value in enumerate(
-                    parsed.as_cells(self.seconds_precision)[1:7], start=1
-                ):
-                    self._set(row, column, value)
-        except (ValueError, TypeError):
-            return
+            item = self.table.item(row, column)
+            if item is not None:
+                item.setData(RAW_VALUE_ROLE, None)
+            self._sync_row(row, prefer_dd=column in {7, 8}, changed_column=column)
+        finally:
+            self.table.blockSignals(False)
+
+    def _sync_row(self, row, prefer_dd=False, changed_column=None):
+        if not self._text(row, 0):
+            self._set(row, 0, row + 1)
+        for dms_columns, dd_column in (((1, 2, 3), 7), ((4, 5, 6), 8)):
+            if changed_column is not None and changed_column not in (*dms_columns, dd_column):
+                continue
+            source_columns = (dd_column,) if prefer_dd else dms_columns
+            target_columns = dms_columns if prefer_dd else (dd_column,)
+            try:
+                if prefer_dd:
+                    value = self._value(row, dd_column)
+                    parsed = row_from_decimal(1, value if dd_column == 7 else 0,
+                                              value if dd_column == 8 else 0)
+                    raw = (parsed.lat_deg, parsed.lat_min, parsed.lat_sec) if dd_column == 7 else (
+                        parsed.lon_deg, parsed.lon_min, parsed.lon_sec)
+                    cells = parsed.as_cells(self.seconds_precision)
+                    for column, exact in zip(dms_columns, raw):
+                        self._set(row, column, cells[column], exact)
+                else:
+                    values = [0.0] * 6
+                    for column in dms_columns:
+                        values[column - 1] = self._value(row, column)
+                    parsed = row_from_values([1, *values])
+                    value = parsed.latitude if dd_column == 7 else parsed.longitude
+                    self._set(row, dd_column, f"{value:.8f}", value)
+                for column in source_columns:
+                    item = self.table.item(row, column)
+                    if item is not None:
+                        item.setBackground(QBrush())
+                        item.setToolTip("")
+            except (ValueError, TypeError, OverflowError) as error:
+                # Invalidate derived cells; acceptance cannot fall back to stale data.
+                for column in target_columns:
+                    self._set(row, column, "")
+                for column in source_columns:
+                    item = self.table.item(row, column)
+                    if item is not None:
+                        item.setBackground(QBrush(QColor("#ffcdd2")))
+                        item.setToolTip(str(error))
 
     def coordinate_rows(self) -> list[CoordinateRow]:
         rows = []
@@ -226,19 +247,19 @@ class ManualCoordinateDialog(QDialog):
                 continue
             try:
                 if all(values[column] for column in range(7)):
-                    row = row_from_values([self._number(value) for value in values[:7]])
+                    row = row_from_values([self._value(row_index, c) for c in range(7)])
                 elif values[0] and values[7] and values[8]:
-                    point_value = self._number(values[0])
+                    point_value = self._value(row_index, 0)
                     if point_value != int(point_value) or point_value < 1:
                         raise ValueError("Point number must be a positive integer")
                     row = row_from_decimal(
                         int(point_value),
-                        self._number(values[7]),
-                        self._number(values[8]),
+                        self._value(row_index, 7),
+                        self._value(row_index, 8),
                     )
                 else:
                     raise ValueError(self.tr("manual_incomplete_row", row=row_index + 1))
-            except ValueError as error:
+            except (ValueError, OverflowError) as error:
                 raise ValueError(self.tr("manual_row_error", row=row_index + 1, error=error))
             rows.append(row)
         return rows

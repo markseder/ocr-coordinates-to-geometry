@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-import subprocess
 import sys
+import importlib
 
 from qgis.core import QgsApplication
+from .install_process import run_install
 
 
 PACKAGES = tuple(
@@ -80,35 +81,12 @@ def install_rapidocr(progress_callback=None, cancelled_callback=None) -> tuple[b
         os.fspath(target),
         *PACKAGES,
     ]
-    creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    # The executable is the QGIS-bundled Python and every argument is built
-    # locally from fixed package requirements; no user input reaches command.
-    process = subprocess.Popen(  # nosec B603
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        creationflags=creation_flags,
-    )
-    output: list[str] = []
-    while process.poll() is None:
-        if cancelled_callback and cancelled_callback():
-            process.terminate()
-            return False, "Установка отменена пользователем."
-        line = process.stdout.readline() if process.stdout else ""
-        if line:
-            output.append(line)
-            if progress_callback:
-                progress_callback(line.strip())
-    if process.stdout:
-        output.extend(process.stdout.readlines())
-    log = "".join(output)
-    if process.returncode != 0:
-        return False, log or f"pip завершился с кодом {process.returncode}"
+    ok, log = run_install(command, progress_callback, cancelled_callback)
+    if not ok:
+        return False, log
     # Python may have cached failed imports while the package was absent.
     for name in tuple(sys.modules):
         if name == "rapidocr" or name.startswith("rapidocr."):
             sys.modules.pop(name, None)
+    importlib.invalidate_caches()
     return rapidocr_available(), log
