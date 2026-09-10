@@ -5,7 +5,7 @@ while it matures toward 1.0.
 
 ## Unreleased
 
-## 1.0.2 — release candidate
+## 1.0.2 — 2026-09-10
 
 - Validate raw DMS/DM components and full latitude/longitude bounds before conversion.
 - Reject nonfinite coordinates and point IDs outside the QGIS 32-bit field range.
@@ -23,7 +23,9 @@ while it matures toward 1.0.
 - Show minimum OCR confidence per row to avoid assigning scores to the wrong
   coordinate after axis reversal or DMS/DD conversion.
 - Add real Qt-widget, synthetic OpenCV-grid and subprocess regression tests to
-  Linux and Windows CI. Actual QGIS 4 / RapidOCR Windows acceptance is pending.
+  Linux and Windows CI.
+- User confirmed the candidate works in QGIS and approved stable publication on
+  2026-09-10.
 
 The dependency mirror remains tracked separately in Issue #8; it is not included
 in this repair release.
