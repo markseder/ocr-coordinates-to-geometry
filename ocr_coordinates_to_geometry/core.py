@@ -156,6 +156,48 @@ def numbers_from_text(text: str) -> list[float]:
     return [float(token.replace(",", ".")) for token in NUMBER_RE.findall(clean)]
 
 
+def prepare_grid_coordinates(cells: Sequence[str]) -> tuple[str, bool]:
+    """Validate cell boundaries; expand complete angle cells without shifting data.
+
+    Restore a missing degree separator only for DDMM'SS or DDDMM'SS,
+    where the surviving minute mark fixes the component boundary. Callers
+    must warn the user whenever this recovery is used.
+    """
+    if len(cells) not in {2, 3, 4, 5, 6, 7} or any(not c.strip() for c in cells):
+        raise ValueError("Incomplete coordinate table row")
+    clean = [normalize_ocr_text(c).strip().translate(str.maketrans({
+        "º": "°", "˚": "°", "′": "'", "’": "'", "‘": "'",
+        "″": '"', "”": '"', "“": '"', "−": "-",
+    })) for c in cells]
+    has_id = len(clean) % 2 == 1
+    if has_id and not re.fullmatch(r"[+]?[0-9]+", clean[0]):
+        raise ValueError("Invalid point number")
+    angles = clean[1:] if has_id else clean
+    expanded = []
+    repaired = False
+    for cell in angles:
+        if NUMBER_RE.fullmatch(cell):
+            expanded.append(cell)
+            continue
+        if len(angles) != 2:
+            raise ValueError("Expected one number per component cell")
+        dms = re.fullmatch(
+            r"([+-]?\d{1,3})(?:\s*°\s*|\s+)(\d{1,2})\s*'\s*(\d{1,2}(?:[.,]\d+)?)\s*(?:\"|'')?\s*([NSEW]?)", cell, re.I)
+        missing = re.fullmatch(
+            r"([+-]?\d{1,3})(\d{2})\s*'\s*(\d{1,2}(?:[.,]\d+)?)\s*(?:\"|'')?\s*([NSEW]?)", cell, re.I)
+        dm = re.fullmatch(r"([+-]?\d{1,3})\s*°\s*(\d{1,2}(?:[.,]\d+)?)\s*'\s*([NSEW]?)", cell, re.I)
+        dd = re.fullmatch(r"([+-]?\d+(?:[.,]\d+)?)\s*°?\s*([NSEW]?)", cell, re.I)
+        match = dms or missing or dm or dd
+        if match is None:
+            raise ValueError("Unrecognized coordinate cell")
+        repaired |= bool(missing and not dms)
+        expanded.append(" ".join(match.groups()))
+    widths = [len(numbers_from_text(c)) for c in expanded]
+    if len(angles) == 2 and widths[0] != widths[1]:
+        raise ValueError("Mixed or incomplete coordinate cells")
+    return "\t".join(([clean[0]] if has_id else []) + expanded), repaired
+
+
 def row_from_values(values: Sequence[float]) -> CoordinateRow:
     if len(values) != 7:
         raise ValueError(f"Expected 7 numeric values, got {len(values)}")

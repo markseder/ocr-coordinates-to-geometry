@@ -57,6 +57,7 @@ from .core import (
     coordinate_csv_row,
     coordinate_quality_issues,
     parse_coordinate_lines,
+    prepare_grid_coordinates,
     row_from_values,
     numbers_from_text,
 )
@@ -376,19 +377,25 @@ class OcrCoordinatesDialog(QDialog):
         warnings = []
         formats = set()
         for number, line in enumerate(prepared, 1):
-            # Empty cells must not shift columns or turn a damaged DMS row into DD.
-            incomplete = bool(line.cells) and any(
-                not cell.strip() or len(numbers_from_text(cell)) != 1 for cell in line.cells
-            )
+            incomplete = False
+            repaired = False
+            text = line.text
+            if line.cells:
+                try:
+                    text, repaired = prepare_grid_coordinates(line.cells)
+                except ValueError:
+                    incomplete = True
             accepted, problems, detected = parse_coordinate_lines(
-                [line.text] if not incomplete else [],
+                [text] if not incomplete else [],
                 coordinate_format=self.format_combo.currentData(),
                 axis_order=self.axis_combo.currentData(),
                 sort_by_point=False,
                 start_number=number,
             )
             if accepted:
-                paired.append((accepted[0], line.confidences, ""))
+                paired.append((accepted[0], line.confidences, line.text if repaired else ""))
+                if repaired:
+                    warnings.append(self.tr("ocr_degree_restored", row=number, source=line.text))
                 damaged_cells.append(())
                 formats.add(detected)
             else:
@@ -470,7 +477,7 @@ class OcrCoordinatesDialog(QDialog):
             python_executable = str(error)
         return "\n".join(
             [
-                "OCR2Geometry: 1.0.2",
+                "OCR2Geometry: 1.1.0",
                 f"QGIS: {Qgis.QGIS_VERSION}",
                 f"Locale: {self.locale}",
                 f"OS: {platform.platform()}",
@@ -486,7 +493,7 @@ class OcrCoordinatesDialog(QDialog):
         dialog.setWindowTitle(self.tr("about_title"))
         dialog.resize(620, 430)
         layout = QVBoxLayout(dialog)
-        title = QLabel("<h2>OCR2Geometry 1.0.2</h2>")
+        title = QLabel("<h2>OCR2Geometry 1.1.0</h2>")
         title.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(title)
         description = QLabel(
@@ -558,6 +565,12 @@ class OcrCoordinatesDialog(QDialog):
                 self.table.setItem(row_index, column, numeric_item(text, raw[column]))
             self._set_decimal_cells(row_index, row)
             self._apply_confidence_style(row_index)
+            if raw_sources and raw_sources[row_index]:
+                for column in range(9):
+                    item = self.table.item(row_index, column)
+                    item.setBackground(QBrush(QColor("#fff3b0")))
+                    item.setData(OCR_SOURCE_ROLE, raw_sources[row_index])
+                    item.setToolTip(self.tr("ocr_degree_restored", row=row_index + 1, source=raw_sources[row_index]))
         self.table.blockSignals(False)
 
     def refresh_seconds_precision(self):
@@ -567,7 +580,8 @@ class OcrCoordinatesDialog(QDialog):
             rows = self.rows_from_table(apply_sort=False)
         except ValueError:
             return
-        self.fill_table(rows, list(self.row_confidences))
+        self.fill_table(rows, list(self.row_confidences),
+                        [self.table.item(i, 0).data(OCR_SOURCE_ROLE) for i in range(self.table.rowCount())])
 
     def _apply_confidence_style(self, row_index):
         if row_index >= len(self.row_confidences):

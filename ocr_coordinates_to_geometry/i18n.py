@@ -6,6 +6,7 @@ from __future__ import annotations
 RU = {
     "repair_main_table": "Сначала исправьте или удалите незаполненные строки в основной таблице. Исходный текст OCR доступен в подсказке ячейки.",
     "recognition_failed": "Ошибка распознавания — таблица не изменена",
+    "ocr_degree_restored": "Строка {row}: знак градуса восстановлен. Сверьте координаты с изображением: {source}",
     "unreadable_ocr_row": "Строка таблицы не распознана",
     "ocr_row_incomplete": "Строка {row} требует проверки: {source}",
     "ocr_source": "Исходная строка OCR: {source}\nИсправьте координаты DMS или удалите строку после сверки с изображением.",
@@ -158,6 +159,7 @@ EN.update(
     {
         "repair_main_table": "First repair or delete incomplete rows in the main table. The original OCR text is available in cell tooltips.",
         "recognition_failed": "Recognition failed — table unchanged",
+        "ocr_degree_restored": "Row {row}: degree sign restored. Check coordinates against the image: {source}",
         "unreadable_ocr_row": "Table row could not be recognized",
         "ocr_row_incomplete": "Row {row} needs review: {source}",
         "ocr_source": "Original OCR row: {source}\nRepair the DMS coordinates or delete the row after checking the image.",
