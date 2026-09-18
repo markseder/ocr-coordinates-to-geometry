@@ -1,6 +1,6 @@
 # Проверка OCR2Geometry 1.1.0
 
-Тестовая ветка: feature/1.1.0-compact-dms. В main и каталог QGIS пока не публикуем.
+Проверка пользователем завершена успешно 18 сентября 2026 года. Версия 1.1.0 стабильная.
 
 Скачайте артефакт ocr-coordinates-to-geometry-windows-latest из GitHub Actions для этой ветки. Распакуйте
 архив артефакта и установите вложенный ocr_coordinates_to_geometry.zip через

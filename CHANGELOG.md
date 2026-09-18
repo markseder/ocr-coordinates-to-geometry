@@ -5,7 +5,7 @@ while it matures toward 1.0.
 
 ## Unreleased
 
-## 1.1.0 — test candidate
+## 1.1.0 — 2026-09-18
 
 - Recognize ruled tables with complete DMS latitude and longitude cells, with or
   without a point-number column, including Unicode degree and prime symbols.
@@ -14,7 +14,7 @@ while it matures toward 1.0.
 - Keep strict cell boundaries and component validation; incomplete and ambiguous
   rows remain visible for repair.
 - Add regression coverage for the five-point survey table and OCR substitutions.
-- This branch is experimental and awaits QGIS/RapidOCR acceptance testing.
+- User confirmed successful QGIS testing; promoted to stable with experimental=False.
 
 
 ## 1.0.2 — 2026-09-10

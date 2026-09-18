@@ -14,6 +14,16 @@ optional polygon directly in QGIS.
 
 *OCR2Geometry in QGIS 4 with source CRS and output-layer naming.*
 
+## New in 1.1.0
+
+Recognize tables with complete DMS coordinates in individual cells, such as
+`61°47′00″` and `149°39′07″`, with or without a point-number column.
+If OCR drops a degree sign while the minute mark still determines the split,
+the plugin restores the separator and displays a review warning. Compare the
+highlighted coordinates with the source image before creating geometry.
+
+![Complete DMS coordinate recognition and review warning](docs/screenshots/ocr2geometry-v1.1.0-compact-dms.png)
+
 ## Why this plugin exists
 
 Mining licences, land-allocation documents and legacy survey reports often
