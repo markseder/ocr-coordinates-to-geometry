@@ -82,7 +82,7 @@ def _group_adjacent(indices):
 
 
 def _recognize_grid_cells(engine, image_path: str | Path) -> list[OcrLine]:
-    """Recognize a ruled seven-column table one cell at a time.
+    """Recognize a ruled coordinate table one cell at a time.
 
     Tiny scans are much more reliable this way: table lines establish the
     rows/columns and RapidOCR only has to recognize one short number per cell.
@@ -112,7 +112,7 @@ def _recognize_grid_cells(engine, image_path: str | Path) -> list[OcrLine]:
     xs = _group_adjacent(np.where((vertical > 0).sum(axis=0) > height * 0.50)[0])
     ys = _group_adjacent(np.where((horizontal > 0).sum(axis=1) > width * 0.33)[0])
     column_count = len(xs) - 1
-    if column_count not in {3, 5, 7} or len(ys) < 2:
+    if column_count not in {2, 3, 5, 7} or len(ys) < 2:
         return []
 
     lines = []

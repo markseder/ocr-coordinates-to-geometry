@@ -42,6 +42,20 @@ class GridRegressionTests(unittest.TestCase):
         self.assertEqual(3, len(lines))
         self.assertEqual(tuple(expected[-7:]), lines[-1].cells)
 
+    def test_three_column_dms_grid_keeps_complete_coordinate_cells(self):
+        from test_compact_dms import SAMPLE
+        image = np.full((310, 755), 255, dtype=np.uint8)
+        for x in (4, 207, 479, 751):
+            cv2.line(image, (x, 4), (x, 304), 0, 2)
+        for y in (4,64,124,184,244,304):
+            cv2.line(image, (4, y), (751, y), 0, 2)
+        cv2.imwrite(str(self.path), image)
+        values = iter(cell for row in SAMPLE for cell in row)
+        def engine(image, **kwargs):
+            return types.SimpleNamespace(txts=[next(values)], scores=[.99])
+        lines = _recognize_grid_cells(engine, self.path)
+        self.assertEqual([tuple(row) for row in SAMPLE], [line.cells for line in lines])
+
     def test_completely_unreadable_grid_rows_remain_visible(self):
         def engine(image, **kwargs):
             return types.SimpleNamespace(txts=None, scores=None)

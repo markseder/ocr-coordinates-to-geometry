@@ -5,6 +5,18 @@ while it matures toward 1.0.
 
 ## Unreleased
 
+## 1.1.0 — 2026-09-18
+
+- Recognize ruled tables with complete DMS latitude and longitude cells, with or
+  without a point-number column, including Unicode degree and prime symbols.
+- Restore missing degree separators only when the minute mark determines the
+  split; show a Russian/English review warning and preserve the source text.
+- Keep strict cell boundaries and component validation; incomplete and ambiguous
+  rows remain visible for repair.
+- Add regression coverage for the five-point survey table and OCR substitutions.
+- User confirmed successful QGIS testing; promoted to stable with experimental=False.
+
+
 ## 1.0.2 — 2026-09-10
 
 - Validate raw DMS/DM components and full latitude/longitude bounds before conversion.

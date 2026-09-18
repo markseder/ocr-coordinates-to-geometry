@@ -172,6 +172,25 @@ class QtRegressionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             d.rows_from_table()
 
+    def test_compact_dms_grid_populates_real_table(self):
+        from test_compact_dms import SAMPLE
+        d = self.main()
+        d.process_coordinate_lines([OcrLine('\t'.join(cells), (.99,)*3, cells) for cells in SAMPLE])
+        rows = d.rows_from_table()
+        self.assertEqual(5, len(rows))
+        self.assertAlmostEqual(61 + 47/60, rows[0].latitude)
+        self.assertAlmostEqual(149 + 36/60 + 37/3600, rows[-1].longitude)
+
+    def test_restored_degree_warns_and_keeps_source_after_precision_change(self):
+        d = self.main()
+        cells = ('1', "6147'00", "14939'07")
+        with patch('ocr_coordinates_to_geometry.dialog.QMessageBox.warning') as warning:
+            d.process_coordinate_lines([OcrLine('\t'.join(cells), (.99,)*3, cells)])
+        self.assertIn('degree sign restored', warning.call_args.args[2])
+        d.refresh_seconds_precision()
+        self.assertIn("14939'07", d.table.item(0, 0).toolTip())
+        self.assertEqual(1, len(d.rows_from_table()))
+
     def test_generated_ids_survive_per_line_parsing(self):
         d = self.main()
         d.process_coordinate_lines([OcrLine('59 93'), OcrLine('60 94')])
